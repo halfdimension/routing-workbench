@@ -12,7 +12,8 @@
 import type { StyleSpecification } from "maplibre-gl";
 import {
   MAPPLS_TILE_URL,
-  OPENFREEMAP_STYLE_URL,
+  OPENFREEMAP_LIBERTY_STYLE_URL,
+  OPENFREEMAP_POSITRON_STYLE_URL,
   type Basemap,
 } from "./basemap";
 
@@ -81,15 +82,20 @@ export function resolveMapStyle(
   if (typeof styleUrl === "string" && styleUrl.trim() !== "") {
     return styleUrl;
   }
-  return OPENFREEMAP_STYLE_URL;
+  return OPENFREEMAP_LIBERTY_STYLE_URL;
 }
 
 /** Resolve a user-facing basemap choice without changing an explicit override. */
 export function styleForBasemap(basemap: Basemap): string | StyleSpecification {
   const override = import.meta.env.VITE_MAP_STYLE_URL?.trim();
   if (override) return override;
+  if (basemap === "legacy") return inlineOsmRasterStyle();
   if (basemap === "mappls") {
-    return mapplsRasterStyle() ?? OPENFREEMAP_STYLE_URL;
+    // Mappls is absent from the selectors when it is not configured. Keep this
+    // defensive fallback deterministic for persisted/legacy callers.
+    return mapplsRasterStyle() ?? OPENFREEMAP_LIBERTY_STYLE_URL;
   }
-  return OPENFREEMAP_STYLE_URL;
+  return basemap === "clean"
+    ? OPENFREEMAP_POSITRON_STYLE_URL
+    : OPENFREEMAP_LIBERTY_STYLE_URL;
 }

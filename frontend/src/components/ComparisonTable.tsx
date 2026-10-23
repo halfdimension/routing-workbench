@@ -27,16 +27,13 @@ import {
   formatCost,
   formatPercentDiff,
 } from "../format";
-import type { NormalizedRoute } from "../types";
-
-function engineName(engine: NormalizedRoute["engine"]): string {
-  return engine === "osrm" ? "OSRM" : "Valhalla";
-}
+import { formatResultInstance } from "../instancePresentation";
 
 export default function ComparisonTable() {
   const routes = useStore((s) => s.routes);
   const selectedRouteId = useStore((s) => s.selectedRouteId);
   const selectRoute = useStore((s) => s.selectRoute);
+  const resultTarget = useStore((s) => s.results?.routingTarget);
 
   if (routes.length === 0) {
     return (
@@ -84,7 +81,7 @@ export default function ComparisonTable() {
                   }
                 }}
               >
-                <td><span className={`comparison-table__engine comparison-table__engine--${route.engine}`}>Engine {route.slot?.toUpperCase() ?? "?"} · {engineName(route.engine)}{route.instance ? ` :${route.instance.port}` : ""}</span></td>
+                <td><span className={`comparison-table__engine comparison-table__engine--${route.engine}`}>{formatResultInstance(route.slot, route.engine, route.instance, resultTarget)}</span></td>
                 <td>
                   <span className="comparison-table__label">
                     <span

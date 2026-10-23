@@ -5,7 +5,7 @@ import RequestPreview from "./RequestPreview";
 import CurlImport from "./CurlImport";
 import TestCases from "./TestCases";
 import EngineInstanceManager from "./EngineInstanceManager";
-import { MAPPLS_TILE_URL, type Basemap } from "../map/basemap";
+import { BASEMAP_OPTIONS, type Basemap } from "../map/basemap";
 
 interface LeftSidebarProps {
   basemap?: Basemap;
@@ -41,10 +41,10 @@ function ModeToggle() {
 }
 
 function BasemapSelect({ basemap, onChange }: { basemap: Basemap; onChange: (value: Basemap) => void }) {
-  return <label className="basemap-control"><span>Basemap</span><select aria-label="Basemap" value={basemap} onChange={(event) => onChange(event.target.value as Basemap)}><option value="mappls" disabled={!MAPPLS_TILE_URL}>Mappls</option><option value="openfreemap">OpenFreeMap</option></select></label>;
+  return <label className="basemap-control"><span>Basemap</span><select aria-label="Basemap" value={basemap} onChange={(event) => onChange(event.target.value as Basemap)}>{BASEMAP_OPTIONS.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select></label>;
 }
 
-export default function LeftSidebar({ basemap = "openfreemap", onBasemapChange = () => undefined }: LeftSidebarProps) {
+export default function LeftSidebar({ basemap = "detailed", onBasemapChange = () => undefined }: LeftSidebarProps) {
   const collapsed = useStore((s) => s.leftCollapsed);
   const toggle = useStore((s) => s.toggleLeftCollapsed);
   const routingTarget = useStore((s) => s.routingTarget);

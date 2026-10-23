@@ -179,19 +179,19 @@ describe("BulkVisibilityControls", () => {
     expect(Object.keys(useStore.getState().visibility)).toHaveLength(5);
   });
 
-  it("OSRM Only shows OSRM and hides Valhalla (Req 5.5)", () => {
+  it("Engine A Only runs the slot-A visibility action", () => {
     seed();
     render(<BulkVisibilityControls />);
 
-    fireEvent.click(screen.getByRole("button", { name: "OSRM Only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Engine A Only" }));
     expect(visible()).toEqual(["osrm:0", "osrm:1"]);
   });
 
-  it("Valhalla Only shows Valhalla and hides OSRM (Req 5.6)", () => {
+  it("Engine B Only runs the slot-B visibility action", () => {
     seed();
     render(<BulkVisibilityControls />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Valhalla Only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Engine B Only" }));
     expect(visible()).toEqual(["valhalla:0", "valhalla:1", "valhalla:2"]);
   });
 
@@ -216,8 +216,8 @@ describe("BulkVisibilityControls", () => {
     for (const label of [
       "Show All",
       "Hide All",
-      "OSRM Only",
-      "Valhalla Only",
+      "Engine A Only",
+      "Engine B Only",
       "Primary Only",
       "Alternatives Only",
     ]) {

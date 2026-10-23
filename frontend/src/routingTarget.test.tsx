@@ -4,6 +4,9 @@ import Toolbar from "./components/Toolbar";
 import RequestPreview from "./components/RequestPreview";
 import RawResponseInspector from "./components/RawResponseInspector";
 import LeftSidebar from "./components/LeftSidebar";
+import ComparisonTable from "./components/ComparisonTable";
+import SelectedRouteInfo from "./components/SelectedRouteInfo";
+import EngineStatusPanel from "./components/EngineStatusPanel";
 import { useStore } from "./store";
 import type { CompareResponse } from "./types";
 
@@ -124,6 +127,69 @@ describe("routing target", () => {
     render(<RawResponseInspector engine="osrm" />);
     expect(screen.getByTestId("raw-inspector-source-osrm")).toHaveTextContent(
       "Compare · Local",
+    );
+  });
+
+  it("uses result origin for instance ports across every result display", () => {
+    const prodA = {
+      ...response("prod").osrm,
+      slot: "a" as const,
+      instance: { type: "osrm" as const, port: 0, label: "Production OSRM" },
+      normalizedRoutes: [{
+        id: "osrm:0", engine: "osrm" as const, index: 0, isPrimary: true,
+        label: "Engine A · Production OSRM · Primary",
+        coordinates: [[77, 28], [77.1, 28.1]] as [number, number][],
+        distanceMeters: 1000, durationSeconds: 100, cost: 1, raw: {},
+        slot: "a" as const,
+        instance: { type: "osrm" as const, port: 0, label: "Production OSRM" },
+      }],
+    };
+    const prodB = {
+      ...response("prod").valhalla,
+      slot: "b" as const,
+      instance: { type: "valhalla" as const, port: 0, label: "Production Valhalla" },
+    };
+    const results = {
+      routingTarget: "prod" as const,
+      osrm: prodA, valhalla: prodB, engineA: prodA, engineB: prodB,
+    };
+    useStore.setState({
+      // Deliberately switch the selector back to Local: old Prod results must
+      // retain their own provenance.
+      routingTarget: "local",
+      results,
+      routes: prodA.normalizedRoutes,
+      selectedRouteId: "osrm:0",
+      latestResponseSource: { osrm: "compare", valhalla: "compare" },
+    });
+    render(<div>
+      <ComparisonTable />
+      <SelectedRouteInfo />
+      <EngineStatusPanel slot="a" />
+      <RawResponseInspector slot="a" />
+    </div>);
+
+    expect(document.body).toHaveTextContent("Production OSRM");
+    expect(document.body.textContent).not.toContain("· :0");
+    expect(api.compare).not.toHaveBeenCalled();
+  });
+
+  it("keeps real Local instance ports visible", () => {
+    const localA = {
+      ...response("local").osrm,
+      slot: "a" as const,
+      instance: { type: "osrm" as const, port: 5000, label: "OSRM original" },
+    };
+    const results = {
+      routingTarget: "local" as const,
+      osrm: localA,
+      valhalla: response("local").valhalla,
+      engineA: localA,
+    };
+    useStore.setState({ results, routingTarget: "prod" });
+    render(<EngineStatusPanel slot="a" />);
+    expect(screen.getByTestId("engine-ok-a")).toHaveTextContent(
+      "Engine A · OSRM original · :5000",
     );
   });
 

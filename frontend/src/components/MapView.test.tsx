@@ -36,6 +36,7 @@ interface MockMap {
   getBounds: ReturnType<typeof vi.fn>;
   queryRenderedFeatures: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
+  setStyle: ReturnType<typeof vi.fn>;
   camera: {
     center: [number, number];
     zoom: number;
@@ -105,6 +106,14 @@ vi.mock("maplibre-gl", () => {
     }
     addControl = vi.fn();
     remove = vi.fn(() => this.listeners.clear());
+    setStyle = vi.fn(() => {
+      // Model MapLibre's destructive style replacement: application-owned
+      // sources, layers, and feature-state are removed until style.load.
+      this.sources.clear();
+      this.sourceData.clear();
+      this.layers.clear();
+      this.featureStates.clear();
+    });
     isStyleLoaded = vi.fn(() => styleLoaded);
     addSource = vi.fn((id: string, specification: { data?: unknown }) => {
       this.sourceData.set(id, specification.data);
@@ -361,6 +370,99 @@ describe("MapView route rendering (Task 16)", () => {
       { source: "routes", id: "valhalla:0" },
       { visible: true, selected: false, hasSelection: false, separated: true },
     );
+  });
+
+  it("rehydrates all route layers and current feature-state after destructive style replacement", () => {
+    const runCompare = vi.fn();
+    const routes = [
+      route({ id: "osrm:0" }),
+      route({ id: "valhalla:0", engine: "valhalla" }),
+    ];
+    useStore.setState({
+      routes,
+      visibility: { "osrm:0": false, "valhalla:0": true },
+      selectedRouteId: "valhalla:0",
+      routeSeparationEnabled: false,
+      runCompare,
+    });
+    const { rerender } = render(<MapView basemap="detailed" />);
+    const map = lastMap();
+    map.camera = { center: [76.5, 27.5], zoom: 12, bearing: 18, pitch: 35 };
+    map.addLayer.mockClear();
+    map.addSource.mockClear();
+    map.setFeatureState.mockClear();
+    map.fitBounds.mockClear();
+    map.easeTo.mockClear();
+
+    rerender(<MapView basemap="clean" />);
+    expect(map.getSource("routes")).toBeUndefined();
+    expect(map.getLayer("routes-hit")).toBeUndefined();
+
+    act(() => map.emit("style.load"));
+
+    expect(map.addSource).toHaveBeenCalledWith(
+      "routes",
+      expect.objectContaining({ type: "geojson", promoteId: "routeId" }),
+    );
+    expect(map.addLayer.mock.calls.map((call) => call[0].id)).toEqual([
+      "routes-hit",
+      "routes-alternates",
+      "routes-primary",
+      "routes-selected-halo",
+      "routes-selected-alternate",
+      "routes-selected-primary",
+    ]);
+    expect(map.setFeatureState).toHaveBeenCalledWith(
+      { source: "routes", id: "osrm:0" },
+      { visible: false, selected: false, hasSelection: true, separated: false },
+    );
+    expect(map.setFeatureState).toHaveBeenCalledWith(
+      { source: "routes", id: "valhalla:0" },
+      { visible: true, selected: true, hasSelection: true, separated: false },
+    );
+    const halo = map.addLayer.mock.calls.find(
+      (call) => call[0].id === "routes-selected-halo",
+    )?.[0];
+    expect(halo.paint["line-color"]).toBe("#ffffff");
+
+    map.addSource.mockClear();
+    map.addLayer.mockClear();
+    act(() => map.emit("style.load"));
+    expect(map.addSource).not.toHaveBeenCalled();
+    expect(map.addLayer).not.toHaveBeenCalled();
+    expect(mapInstances).toHaveLength(1);
+    expect(map.fitBounds).not.toHaveBeenCalled();
+    expect(map.easeTo).not.toHaveBeenCalled();
+    expect(runCompare).not.toHaveBeenCalled();
+    expect(map.camera).toEqual({
+      center: [76.5, 27.5], zoom: 12, bearing: 18, pitch: 35,
+    });
+  });
+
+  it("falls back once for a vector style-document failure but ignores tile failures", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    render(<MapView basemap="detailed" />);
+    const map = lastMap();
+    map.setStyle.mockClear();
+    styleLoaded = false;
+
+    act(() => map.emit("error", {
+      sourceId: "openmaptiles",
+      error: { message: "tile network load failed" },
+    }));
+    expect(map.setStyle).not.toHaveBeenCalled();
+
+    act(() => map.emit("error", {
+      error: { message: "style document fetch failed" },
+    }));
+    expect(map.setStyle).toHaveBeenCalledOnce();
+    expect(map.setStyle.mock.calls[0][0]).toMatchObject({ version: 8 });
+
+    act(() => map.emit("error", {
+      error: { message: "style document fetch failed again" },
+    }));
+    expect(map.setStyle).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
   });
 
   it("reapplies feature-state after setData when routes are replaced", () => {

@@ -32,6 +32,7 @@ import { useStore } from "../store";
 import { engineDisplayName, engineResultMessage } from "../engineError";
 import { formatDurationMs } from "../format";
 import type { ComparisonSlot, Engine } from "../types";
+import { formatResultInstance } from "../instancePresentation";
 
 export default function EngineStatusPanel({ engine, slot }: { engine?: Engine; slot?: ComparisonSlot }) {
   // Subscribe ONLY to this engine's envelope. Reading `results` (the whole
@@ -44,7 +45,7 @@ export default function EngineStatusPanel({ engine, slot }: { engine?: Engine; s
         : results[engine ?? "osrm"];
   const resolvedEngine = envelope?.engine ?? engine ?? "osrm";
   const name = slot
-    ? `Engine ${slot.toUpperCase()} · ${envelope?.instance?.label ?? engineDisplayName(resolvedEngine)}${envelope?.instance?.port ? ` · :${envelope.instance.port}` : ""}`
+    ? formatResultInstance(slot, resolvedEngine, envelope?.instance, results?.routingTarget)
     : engineDisplayName(resolvedEngine);
   const key = slot ?? resolvedEngine;
 

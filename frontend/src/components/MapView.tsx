@@ -189,6 +189,49 @@ function applyFeatureState(
   }
 }
 
+/** Install/update the current route source and its fixed six-layer stack. */
+function installCurrentRoutes(map: maplibregl.Map): boolean {
+  if (!map.isStyleLoaded?.()) return false;
+
+  const state = useStore.getState();
+  const data = buildRoutesFeatureCollection(state.routes);
+  const existing = map.getSource(ROUTES_SOURCE_ID) as
+    | maplibregl.GeoJSONSource
+    | undefined;
+  if (existing) {
+    existing.setData(data as unknown as GeoJSON.FeatureCollection);
+  } else {
+    map.addSource(ROUTES_SOURCE_ID, {
+      type: "geojson",
+      promoteId: "routeId",
+      data: data as unknown as GeoJSON.FeatureCollection,
+    });
+  }
+
+  const routeLayerSpecs = [
+    hitLayerSpec(),
+    alternatesLayerSpec(),
+    primaryLayerSpec(),
+    selectedHaloLayerSpec(),
+    selectedAlternateLayerSpec(),
+    selectedPrimaryLayerSpec(),
+  ];
+  for (const spec of routeLayerSpecs) {
+    if (!map.getLayer(spec.id)) {
+      map.addLayer(spec as unknown as maplibregl.LayerSpecification);
+    }
+  }
+
+  applyFeatureState(
+    map,
+    state.routes,
+    state.visibility,
+    state.selectedRouteId,
+    state.routeSeparationEnabled,
+  );
+  return true;
+}
+
 /**
  * Resolve and apply a route selection from a map click (Task 21.1, Req 6.1).
  *
@@ -258,7 +301,7 @@ interface MapViewProps {
   basemap?: Basemap;
 }
 
-export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
+export default function MapView({ basemap = "detailed" }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const basemapRef = useRef<Basemap>(basemap);
@@ -267,6 +310,7 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
   const previousActiveDebugIdsRef = useRef<string[]>([]);
   const pendingResultFitRef = useRef(false);
   const fallbackAppliedRef = useRef(false);
+  const basemapAppliedRef = useRef(false);
 
   const start = useStore((s) => s.start);
   const dest = useStore((s) => s.dest);
@@ -383,7 +427,7 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
     const handleBasemapError = (event: unknown) => {
       const value = event as { sourceId?: unknown; error?: { message?: unknown } };
       const message = typeof value.error?.message === "string" ? value.error.message : "";
-      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
+      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || !["detailed", "clean"].includes(basemapRef.current) || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
       fallbackAppliedRef.current = true;
       const camera = readMapCamera(map);
       map.setStyle?.(inlineOsmRasterStyle());
@@ -546,6 +590,12 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
     setBasemapNotice(null);
     const map = mapRef.current;
     if (!map?.setStyle) return;
+    // The constructor already receives the Detailed/custom default style.
+    // Avoid replacing that same initial style (and touching camera state).
+    if (!basemapAppliedRef.current) {
+      basemapAppliedRef.current = true;
+      if (basemap === "detailed") return;
+    }
     const camera = readMapCamera(map);
     map.setStyle(styleForBasemap(basemap));
     if (camera) restoreMapCamera(map, camera);
@@ -582,78 +632,30 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
   }, [dest]);
 
   // --- Route source + layers (Task 16.1) -----------------------------------
-  // Push the current routes into a single combined GeoJSON source, creating the
-  // source and the three line layers lazily the first time routes arrive after
-  // the map is ready. All map operations are guarded for style/source
-  // readiness so nothing throws if routes update before the map loads.
+  // Keep this listener stable for the map lifetime. It is registered before
+  // dependent diagnostic overlay effects, ensuring the route stack exists
+  // first whenever a replacement style finishes loading.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
-    const apply = () => {
-      // Guard: the style must be loaded before adding sources/layers.
-      if (!map.isStyleLoaded || !map.isStyleLoaded()) return;
-
-      const data = buildRoutesFeatureCollection(routes);
-      const existing = map.getSource(ROUTES_SOURCE_ID) as
-        | maplibregl.GeoJSONSource
-        | undefined;
-
-      if (existing) {
-        existing.setData(data as unknown as GeoJSON.FeatureCollection);
-      } else {
-        // Lazily create the source with promoteId so feature identity comes
-        // from properties.routeId (design: Source & layer model).
-        map.addSource(ROUTES_SOURCE_ID, {
-          type: "geojson",
-          promoteId: "routeId",
-          data: data as unknown as GeoJSON.FeatureCollection,
-        });
-        // Bottom → top: hit, normal alternates/primaries, selected halo/redraw.
-        const routeLayerSpecs = [
-          hitLayerSpec(),
-          alternatesLayerSpec(),
-          primaryLayerSpec(),
-          selectedHaloLayerSpec(),
-          selectedAlternateLayerSpec(),
-          selectedPrimaryLayerSpec(),
-        ];
-        for (const spec of routeLayerSpecs) {
-          if (!map.getLayer(spec.id)) {
-            map.addLayer(spec as unknown as maplibregl.LayerSpecification);
-          }
-        }
-      }
-
-      // CRITICAL: feature-state does NOT survive a source-data replacement, so
-      // reapply it for every current route AFTER setData (Task 16.2).
-      const state = useStore.getState();
-      applyFeatureState(
-        map,
-        routes,
-        state.visibility,
-        state.selectedRouteId,
-        state.routeSeparationEnabled,
-      );
+    const apply = () => installCurrentRoutes(map);
+    map.on("style.load", apply);
+    return () => {
+      map.off("style.load", apply);
     };
+  }, []);
 
-    if (map.isStyleLoaded && map.isStyleLoaded()) {
-      apply();
-    } else if (map.once) {
-      // Defer until the map next settles. "idle" is used instead of "load"
-      // because `load` fires exactly once during initialization: a routes update
-      // arriving while `isStyleLoaded()` is transiently false AFTER that initial
-      // load would queue a `load` handler that never runs, silently dropping the
-      // source creation / setData. "idle" fires after every render settle.
-      map.once("idle", apply);
-      return () => {
-        map.off("idle", apply);
-      };
-    }
-    // Re-run whenever the routes change (new Compare results replace the source
-    // data). visibility/selectedRouteId are read fresh via getState() so they
-    // are not stale here; a separate effect below handles their live updates.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Push new comparison data immediately, or once when the current style
+  // settles. This is separate from the stable style.load rehydration listener.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => installCurrentRoutes(map);
+    if (apply()) return;
+    map.once?.("idle", apply);
+    return () => {
+      map.off?.("idle", apply);
+    };
   }, [routes]);
 
   // --- Feature-state visibility/selection (Task 16.2) ----------------------

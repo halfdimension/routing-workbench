@@ -23,6 +23,7 @@ import {
   formatCost,
   formatDurationMs,
 } from "../format";
+import { formatResultInstance } from "../instancePresentation";
 
 export default function SelectedRouteInfo() {
   const selectedRouteId = useStore((s) => s.selectedRouteId);
@@ -40,7 +41,6 @@ export default function SelectedRouteInfo() {
     );
   }
 
-  const engineName = route.engine === "osrm" ? "OSRM" : "Valhalla";
   const kind = route.isPrimary ? "Primary" : "Alternate";
   // Per-engine round-trip time measured by the backend (Req 7.1). Null when no
   // compare result is present for this engine.
@@ -65,7 +65,7 @@ export default function SelectedRouteInfo() {
 
       <dl className="selected-route__fields">
         <dt>Engine</dt>
-        <dd>{route.slot ? `Engine ${route.slot.toUpperCase()} · ` : ""}{route.instance?.label ?? engineName}{route.instance ? ` · :${route.instance.port}` : ""}</dd>
+        <dd>{formatResultInstance(route.slot, route.engine, route.instance, results?.routingTarget)}</dd>
         <dt>Distance</dt>
         <dd>{formatDistanceKm(route.distanceMeters)}</dd>
         <dt>Duration</dt>

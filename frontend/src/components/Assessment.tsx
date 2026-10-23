@@ -27,6 +27,7 @@ import { routeColor } from "../map/color";
 import { routeAssessmentKey } from "../assessmentKey";
 import { formatDistanceKm, formatDuration, formatCost } from "../format";
 import type { NormalizedRoute, RouteQuality, RouteWarning } from "../types";
+import { formatResultInstance } from "../instancePresentation";
 
 type Rating = RouteQuality["rating"];
 
@@ -112,7 +113,6 @@ function AssessmentCard({ route }: { route: NormalizedRoute }) {
   const rating = entry?.rating;
   const notes = entry?.notes ?? "";
 
-  const engineName = route.engine === "osrm" ? "OSRM" : "Valhalla";
   const kind = route.isPrimary ? "Primary" : "Alternate";
 
   // Warnings for THIS route (match engine + routeIndex) (Req 17.11).
@@ -137,7 +137,7 @@ function AssessmentCard({ route }: { route: NormalizedRoute }) {
 
       <dl className="assessment-card__fields">
         <dt>Engine</dt>
-        <dd>{route.slot ? `Engine ${route.slot.toUpperCase()} · ` : ""}{route.instance?.label ?? engineName}{route.instance ? ` · ${engineName} :${route.instance.port}` : ""}</dd>
+        <dd>{formatResultInstance(route.slot, route.engine, route.instance, results?.routingTarget)}</dd>
         <dt>Distance</dt>
         <dd>{formatDistanceKm(route.distanceMeters)}</dd>
         <dt>Duration</dt>

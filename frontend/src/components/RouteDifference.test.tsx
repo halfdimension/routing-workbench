@@ -78,9 +78,9 @@ describe("RouteDifference", () => {
 
   it("lists only the appropriate engine routes and keeps normal selection independent", () => {
     render(<RouteDifference />);
-    const osrmSelect = screen.getByRole("combobox", { name: "OSRM route" });
+    const osrmSelect = screen.getByRole("combobox", { name: "Engine A route" });
     const valhallaSelect = screen.getByRole("combobox", {
-      name: "Valhalla route",
+      name: "Engine B route",
     });
     expect(osrmSelect).toHaveValue("osrm:0");
     expect(valhallaSelect).toHaveValue("valhalla:0");

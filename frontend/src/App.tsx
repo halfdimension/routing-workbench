@@ -24,9 +24,7 @@ type Screen = "comparison" | "trace";
 export default function App() {
   const refreshHealth = useStore((s) => s.refreshHealth);
   const [screen, setScreen] = useState<Screen>("comparison");
-  const [basemap, setBasemap] = useState<Basemap>(
-    import.meta.env.VITE_MAPPLS_TILE_URL?.trim() ? "mappls" : "openfreemap",
-  );
+  const [basemap, setBasemap] = useState<Basemap>("detailed");
   const comparisonWorkspaceRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {

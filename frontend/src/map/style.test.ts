@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { resolveMapStyle, inlineOsmRasterStyle, mapplsRasterStyle, OSM_TILE_URL, styleForBasemap } from "./style";
-import { OPENFREEMAP_STYLE_URL } from "./basemap";
+import { basemapOptions, OPENFREEMAP_POSITRON_STYLE_URL, OPENFREEMAP_STYLE_URL } from "./basemap";
 
 describe("resolveMapStyle", () => {
   it("returns OpenFreeMap when no style URL is set", () => {
@@ -33,12 +33,23 @@ describe("resolveMapStyle", () => {
   });
 
   it("offers OpenFreeMap and a configured Mappls raster style", () => {
-    expect(styleForBasemap("openfreemap")).toBe(OPENFREEMAP_STYLE_URL);
+    expect(styleForBasemap("detailed")).toBe(OPENFREEMAP_STYLE_URL);
+    expect(styleForBasemap("clean")).toBe(OPENFREEMAP_POSITRON_STYLE_URL);
+    expect(styleForBasemap("legacy")).toEqual(inlineOsmRasterStyle());
     const style = mapplsRasterStyle("https://tiles.example/{z}/{x}/{y}.png");
     expect(style?.sources.mappls).toMatchObject({
       type: "raster",
       tiles: ["https://tiles.example/{z}/{x}/{y}.png"],
       tileSize: 256,
     });
+  });
+
+  it("only offers Mappls when a tile URL is configured", () => {
+    expect(basemapOptions("").map((option) => option.label)).toEqual([
+      "Detailed", "Clean", "Legacy",
+    ]);
+    expect(basemapOptions("https://tiles.example/{z}/{x}/{y}.png").map(
+      (option) => option.label,
+    )).toEqual(["Detailed", "Clean", "Legacy", "Mappls"]);
   });
 });

@@ -95,7 +95,7 @@ export function fitTraceMap(
 
 export default function TraceMap({
   sourceRoute,
-  basemap = "openfreemap",
+  basemap = "detailed",
   compactDetails = false,
   layoutRevision = 0,
 }: {
@@ -109,6 +109,8 @@ export default function TraceMap({
   const previousActiveIds = useRef<string[]>([]);
   const pendingResultFitRef = useRef(false);
   const fallbackAppliedRef = useRef(false);
+  const basemapRef = useRef<Basemap>(basemap);
+  const basemapAppliedRef = useRef(false);
   const handledTraceRevisionRef = useRef<number | null>(null);
 
   const result = useStore((state) => state.traceResult);
@@ -171,8 +173,13 @@ export default function TraceMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.setStyle) return;
+    basemapRef.current = basemap;
     fallbackAppliedRef.current = false;
     setBasemapNotice(null);
+    if (!basemapAppliedRef.current) {
+      basemapAppliedRef.current = true;
+      if (basemap === "detailed") return;
+    }
     const camera = readMapCamera(map);
     map.setStyle(styleForBasemap(basemap));
     if (camera) restoreMapCamera(map, camera);
@@ -228,7 +235,7 @@ export default function TraceMap({
     const handleBasemapError = (event: unknown) => {
       const value = event as { sourceId?: unknown; error?: { message?: unknown } };
       const message = typeof value.error?.message === "string" ? value.error.message : "";
-      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
+      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || !["detailed", "clean"].includes(basemapRef.current) || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
       fallbackAppliedRef.current = true;
       const camera = readMapCamera(map);
       map.setStyle?.(inlineOsmRasterStyle());

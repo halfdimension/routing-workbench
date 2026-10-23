@@ -102,6 +102,20 @@ function traceResult(sourceRouteId = "osrm:0"): ValhallaTraceResult {
   };
 }
 
+function dispatchPointer(
+  element: Element,
+  type: string,
+  pointerId: number,
+  clientY: number,
+) {
+  const event = new Event(type, { bubbles: true });
+  Object.defineProperties(event, {
+    pointerId: { value: pointerId },
+    clientY: { value: clientY },
+  });
+  fireEvent(element, event);
+}
+
 describe("TraceInspector", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -140,6 +154,40 @@ describe("TraceInspector", () => {
     expect(handle).toHaveAttribute("aria-valuenow", "104");
     fireEvent.keyDown(handle, { key: "ArrowDown" });
     expect(handle).toHaveAttribute("aria-valuenow", "114");
+    expect(api.valhallaTrace).not.toHaveBeenCalled();
+  });
+
+  it("stops settings resizing on pointer cancel and lost capture", () => {
+    render(<TraceInspector />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const handle = screen.getByRole("separator", { name: "Resize trace settings" });
+
+    dispatchPointer(handle, "pointerdown", 7, 100);
+    dispatchPointer(handle, "pointermove", 7, 150);
+    expect(handle).toHaveAttribute("aria-valuenow", "154");
+    dispatchPointer(handle, "pointercancel", 7, 150);
+    dispatchPointer(handle, "pointermove", 7, 220);
+    expect(handle).toHaveAttribute("aria-valuenow", "154");
+
+    dispatchPointer(handle, "pointerdown", 8, 100);
+    dispatchPointer(handle, "pointermove", 8, 500);
+    expect(handle).toHaveAttribute("aria-valuenow", "220");
+    dispatchPointer(handle, "lostpointercapture", 8, 500);
+    dispatchPointer(handle, "pointermove", 8, -500);
+    expect(handle).toHaveAttribute("aria-valuenow", "220");
+    expect(api.valhallaTrace).not.toHaveBeenCalled();
+  });
+
+  it("stops settings resizing on pointer up", () => {
+    render(<TraceInspector />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const handle = screen.getByRole("separator", { name: "Resize trace settings" });
+    dispatchPointer(handle, "pointerdown", 9, 100);
+    dispatchPointer(handle, "pointermove", 9, 130);
+    expect(handle).toHaveAttribute("aria-valuenow", "134");
+    dispatchPointer(handle, "pointerup", 9, 130);
+    dispatchPointer(handle, "pointermove", 9, 200);
+    expect(handle).toHaveAttribute("aria-valuenow", "134");
     expect(api.valhallaTrace).not.toHaveBeenCalled();
   });
 

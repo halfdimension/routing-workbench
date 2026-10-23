@@ -101,7 +101,7 @@ export default function RouteDifference() {
         <label>
           <span>Engine A route</span>
           <select
-            aria-label="OSRM route"
+            aria-label="Engine A route"
             value={osrmRouteId ?? ""}
             disabled={osrmRoutes.length === 0}
             onChange={(event) => setOsrmRouteId(event.target.value)}
@@ -117,7 +117,7 @@ export default function RouteDifference() {
         <label>
           <span>Engine B route</span>
           <select
-            aria-label="Valhalla route"
+            aria-label="Engine B route"
             value={valhallaRouteId ?? ""}
             disabled={valhallaRoutes.length === 0}
             onChange={(event) => setValhallaRouteId(event.target.value)}

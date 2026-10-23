@@ -27,6 +27,7 @@ import {
   selectEngineResponse,
   type ResponseSource,
 } from "./selectEngineResponse";
+import { formatResultInstance } from "../instancePresentation";
 
 const ENGINE_NAME: Record<Engine, string> = {
   osrm: "OSRM",
@@ -87,7 +88,7 @@ export default function RawResponseInspector({ engine, slot }: { engine?: Engine
   );
 
   const engineName = slot
-    ? `Engine ${slot.toUpperCase()} · ${selected?.instance?.label ?? ENGINE_NAME[selected?.engine ?? resolvedEngine]}${selected?.instance?.port ? ` · :${selected.instance.port}` : ""}`
+    ? formatResultInstance(slot, selected?.engine ?? resolvedEngine, selected?.instance, results?.routingTarget)
     : ENGINE_NAME[resolvedEngine];
   const testKey = slot ?? resolvedEngine;
   const hasRaw = resp.raw !== undefined && resp.raw !== null;

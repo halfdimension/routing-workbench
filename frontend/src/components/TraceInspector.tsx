@@ -17,13 +17,13 @@ import EdgeDetailsPanel from "./EdgeDetailsPanel";
 import JsonViewer from "./JsonViewer";
 import TraceMap from "./TraceMap";
 import TraceRouteAnalysis from "./TraceRouteAnalysis";
-import type { Basemap } from "../map/basemap";
+import { BASEMAP_OPTIONS, type Basemap } from "../map/basemap";
 
 export const TRACE_DETAILS_DEFAULT_HEIGHT = 180;
 export const TRACE_DETAILS_MIN_HEIGHT = 140;
 
 export default function TraceInspector({
-  basemap = "openfreemap",
+  basemap = "detailed",
   onBasemapChange = () => undefined,
 }: {
   basemap?: Basemap;
@@ -64,18 +64,21 @@ export default function TraceInspector({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [settingsHeight, setSettingsHeight] = useState(104);
-  const dragStart = useRef<{ y: number; height: number } | null>(null);
+  const dragStart = useRef<{ pointerId: number; y: number; height: number } | null>(null);
   const resizeSettings = (height: number) => setSettingsHeight(Math.max(88, Math.min(220, height)));
   const onSettingsPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    dragStart.current = { y: event.clientY, height: settingsHeight };
+    dragStart.current = { pointerId: event.pointerId, y: event.clientY, height: settingsHeight };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
   const onSettingsPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (dragStart.current) resizeSettings(dragStart.current.height + event.clientY - dragStart.current.y);
+    if (dragStart.current?.pointerId === event.pointerId) resizeSettings(dragStart.current.height + event.clientY - dragStart.current.y);
   };
-  const onSettingsPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+  const stopSettingsDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragStart.current?.pointerId !== event.pointerId) return;
     dragStart.current = null;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
   };
   const onSettingsKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
@@ -198,12 +201,12 @@ export default function TraceInspector({
         </label>
         <button type="button" className="trace-toolbar__plain" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((value) => !value)}>Settings</button>
         <button type="button" className="toolbar__fit-btn" onClick={requestFit}>Fit Routes</button>
-        <label className="trace-basemap"><span className="sr-only">Basemap</span><select aria-label="Trace basemap" value={basemap} onChange={(event) => onBasemapChange(event.target.value as Basemap)}><option value="mappls">Mappls</option><option value="openfreemap">OpenFreeMap</option></select></label>
+        <label className="trace-basemap"><span className="sr-only">Basemap</span><select aria-label="Trace basemap" value={basemap} onChange={(event) => onBasemapChange(event.target.value as Basemap)}>{BASEMAP_OPTIONS.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select></label>
       </header>
 
       {settingsOpen ? <section className="trace-settings" style={{ height: settingsHeight }} aria-label="Trace settings">
         <dl><div><dt>Source</dt><dd>OSRM</dd></div><div><dt>Trace engine</dt><dd>Local Valhalla</dd></div><div><dt>Costing</dt><dd>motorcycle</dd></div><div><dt>Shape match</dt><dd>map_snap</dd></div></dl>
-        <div className="trace-settings__resize" role="separator" aria-label="Resize trace settings" aria-orientation="horizontal" aria-valuemin={88} aria-valuemax={220} aria-valuenow={settingsHeight} tabIndex={0} onPointerDown={onSettingsPointerDown} onPointerMove={onSettingsPointerMove} onPointerUp={onSettingsPointerUp} onKeyDown={onSettingsKeyDown}><span /></div>
+        <div className="trace-settings__resize" role="separator" aria-label="Resize trace settings" aria-orientation="horizontal" aria-valuemin={88} aria-valuemax={220} aria-valuenow={settingsHeight} tabIndex={0} onPointerDown={onSettingsPointerDown} onPointerMove={onSettingsPointerMove} onPointerUp={stopSettingsDrag} onPointerCancel={stopSettingsDrag} onLostPointerCapture={stopSettingsDrag} onKeyDown={onSettingsKeyDown}><span /></div>
       </section> : null}
 
       {osrmRoutes.length === 0 ? (

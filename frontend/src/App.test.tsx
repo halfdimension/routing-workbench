@@ -18,6 +18,7 @@ import {
 import App from "./App";
 import { useStore } from "./store";
 import type { CompareDebug, NormalizedRoute } from "./types";
+import { MAPPLS_TILE_URL } from "./map/basemap";
 
 vi.mock("./api", () => ({
   API_BASE_URL: "http://localhost:8000",
@@ -104,6 +105,24 @@ describe("App layout shell", () => {
   it("renders the map placeholder region", async () => {
     await renderApp();
     expect(screen.getByTestId("map-view")).toBeInTheDocument();
+  });
+
+  it("shares Detailed, Clean, and Legacy basemaps between both screens", async () => {
+    await renderApp();
+    const comparisonSelect = screen.getByRole("combobox", { name: "Basemap" });
+    expect(comparisonSelect).toHaveValue("detailed");
+    expect(within(comparisonSelect).getByRole("option", { name: "Detailed" })).toBeInTheDocument();
+    expect(within(comparisonSelect).getByRole("option", { name: "Clean" })).toBeInTheDocument();
+    expect(within(comparisonSelect).getByRole("option", { name: "Legacy" })).toBeInTheDocument();
+    expect(Boolean(within(comparisonSelect).queryByRole("option", { name: "Mappls" }))).toBe(Boolean(MAPPLS_TILE_URL));
+    fireEvent.change(comparisonSelect, { target: { value: "clean" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Trace Inspector" }));
+    const traceSelect = screen.getByRole("combobox", { name: "Trace basemap" });
+    expect(traceSelect).toHaveValue("clean");
+    expect(within(traceSelect).getByRole("option", { name: "Detailed" })).toBeInTheDocument();
+    expect(within(traceSelect).getByRole("option", { name: "Clean" })).toBeInTheDocument();
+    expect(within(traceSelect).getByRole("option", { name: "Legacy" })).toBeInTheDocument();
   });
 
   it("renders all bottom tab labels including Route Difference after Comparison", async () => {
