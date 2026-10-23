@@ -10,7 +10,11 @@
  * helper remains available for callers that specifically need a raster style.
  */
 import type { StyleSpecification } from "maplibre-gl";
-import { OPENFREEMAP_STYLE_URL } from "./basemap";
+import {
+  MAPPLS_TILE_URL,
+  OPENFREEMAP_STYLE_URL,
+  type Basemap,
+} from "./basemap";
 
 /** The standard OpenStreetMap raster tile template (no API key required). */
 export const OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -42,6 +46,25 @@ export function inlineOsmRasterStyle(): StyleSpecification {
   };
 }
 
+/** Build the Mappls raster style without exposing its configured URL in UI code. */
+export function mapplsRasterStyle(
+  tileUrl: string = MAPPLS_TILE_URL,
+): StyleSpecification | null {
+  if (!tileUrl) return null;
+  return {
+    version: 8,
+    sources: {
+      mappls: {
+        type: "raster",
+        tiles: [tileUrl],
+        tileSize: 256,
+        attribution: "© MapmyIndia / Mappls",
+      },
+    },
+    layers: [{ id: "mappls", type: "raster", source: "mappls" }],
+  };
+}
+
 /**
  * Resolve the MapLibre style to use for the basemap.
  *
@@ -57,6 +80,16 @@ export function resolveMapStyle(
 ): string | StyleSpecification {
   if (typeof styleUrl === "string" && styleUrl.trim() !== "") {
     return styleUrl;
+  }
+  return OPENFREEMAP_STYLE_URL;
+}
+
+/** Resolve a user-facing basemap choice without changing an explicit override. */
+export function styleForBasemap(basemap: Basemap): string | StyleSpecification {
+  const override = import.meta.env.VITE_MAP_STYLE_URL?.trim();
+  if (override) return override;
+  if (basemap === "mappls") {
+    return mapplsRasterStyle() ?? OPENFREEMAP_STYLE_URL;
   }
   return OPENFREEMAP_STYLE_URL;
 }

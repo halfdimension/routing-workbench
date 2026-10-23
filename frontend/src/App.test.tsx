@@ -90,7 +90,7 @@ describe("App layout shell", () => {
   it("renders the toolbar title", async () => {
     await renderApp();
     expect(
-      screen.getByText(/Bike Routing Comparison & Debugging Dashboard/i),
+      screen.getByRole("heading", { name: /Routing Comparison/i }),
     ).toBeInTheDocument();
   });
 
@@ -115,9 +115,9 @@ describe("App layout shell", () => {
       "Edge Details",
       "Route Analysis",
       "OSRM Raw Request",
-      "OSRM Response",
+      "Engine A Response",
       "Valhalla Raw Request",
-      "Valhalla Response",
+      "Engine B Response",
       "Assessment",
     ];
     for (const label of labels) {
@@ -147,8 +147,8 @@ describe("App layout shell", () => {
   it("keeps the right sidebar focused on route controls", async () => {
     await renderApp();
     const sidebar = screen.getByLabelText("Routes");
-    expect(within(sidebar).getByText("Engine Status")).toBeInTheDocument();
-    expect(within(sidebar).getByText("Visibility Controls")).toBeInTheDocument();
+    expect(within(sidebar).getByText("Results")).toBeInTheDocument();
+    expect(within(sidebar).getByText("Routes")).toBeInTheDocument();
     expect(within(sidebar).queryByText("Pinned edge details")).not.toBeInTheDocument();
   });
 

@@ -5,7 +5,7 @@
  * override argument lets us exercise both branches directly.
  */
 import { describe, it, expect } from "vitest";
-import { resolveMapStyle, inlineOsmRasterStyle, OSM_TILE_URL } from "./style";
+import { resolveMapStyle, inlineOsmRasterStyle, mapplsRasterStyle, OSM_TILE_URL, styleForBasemap } from "./style";
 import { OPENFREEMAP_STYLE_URL } from "./basemap";
 
 describe("resolveMapStyle", () => {
@@ -30,5 +30,15 @@ describe("resolveMapStyle", () => {
     expect(style).not.toBe(OSM_TILE_URL);
     const osm = style.sources.osm as { tiles?: string[] };
     expect(osm.tiles?.[0]).toBe(OSM_TILE_URL);
+  });
+
+  it("offers OpenFreeMap and a configured Mappls raster style", () => {
+    expect(styleForBasemap("openfreemap")).toBe(OPENFREEMAP_STYLE_URL);
+    const style = mapplsRasterStyle("https://tiles.example/{z}/{x}/{y}.png");
+    expect(style?.sources.mappls).toMatchObject({
+      type: "raster",
+      tiles: ["https://tiles.example/{z}/{x}/{y}.png"],
+      tileSize: 256,
+    });
   });
 });

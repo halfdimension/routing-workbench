@@ -44,7 +44,11 @@ function resultStatus(result: EngineResult | undefined, selected: EngineInstance
   return `Connected · ${result.normalizedRoutes.length} route${result.normalizedRoutes.length === 1 ? "" : "s"}`;
 }
 
-export default function EngineInstanceManager() {
+export default function EngineInstanceManager({
+  view = "all",
+}: {
+  view?: "all" | "selector" | "manager";
+}) {
   const instances = useStore((state) => state.engineInstances);
   const aId = useStore((state) => state.engineAId);
   const bId = useStore((state) => state.engineBId);
@@ -62,20 +66,21 @@ export default function EngineInstanceManager() {
 
   return (
     <div className="engine-manager">
-      <div className="comparison-selector">
+      {view !== "manager" ? <div className="comparison-selector">
         <label>Engine A<select value={aId} onChange={(event) => setA(event.target.value)}>{instances.map((item) => <option key={item.id} value={item.id}>{display(item)}</option>)}</select></label>
         <button type="button" className="comparison-selector__swap" onClick={swap} aria-label="Swap Engine A and Engine B">⇄ Swap</button>
         <label>Engine B<select value={bId} onChange={(event) => setB(event.target.value)}>{instances.map((item) => <option key={item.id} value={item.id}>{display(item)}</option>)}</select></label>
-      </div>
-      <div className="engine-slot-status" data-state={resultA?.status ?? "idle"}><strong>A</strong> {compareStatus === "loading" ? "Loading…" : selectedA && lastCompared?.a.type === selectedA.type && lastCompared.a.port === selectedA.port ? resultStatus(resultA, selectedA) : "Not checked"}</div>
-      <div className="engine-slot-status" data-state={resultB?.status ?? "idle"}><strong>B</strong> {compareStatus === "loading" ? "Loading…" : selectedB && lastCompared?.b.type === selectedB.type && lastCompared.b.port === selectedB.port ? resultStatus(resultB, selectedB) : "Not checked"}</div>
-      {aId === bId && <p className="engine-manager__note">Both slots use the same instance. This is allowed.</p>}
-      <details className="engine-manager__instances">
-        <summary>Manage instances ({instances.length})</summary>
+      </div> : null}
+      {view !== "manager" ? <>
+        <div className="engine-slot-status" data-state={resultA?.status ?? "idle"}><strong>A</strong> {compareStatus === "loading" ? "Loading…" : selectedA && lastCompared?.a.type === selectedA.type && lastCompared.a.port === selectedA.port ? resultStatus(resultA, selectedA) : "Not checked"}</div>
+        <div className="engine-slot-status" data-state={resultB?.status ?? "idle"}><strong>B</strong> {compareStatus === "loading" ? "Loading…" : selectedB && lastCompared?.b.type === selectedB.type && lastCompared.b.port === selectedB.port ? resultStatus(resultB, selectedB) : "Not checked"}</div>
+        {aId === bId && <p className="engine-manager__note">Both slots use the same instance. This is allowed.</p>}
+      </> : null}
+      {view !== "selector" ? <div className="engine-manager__instances">
         {instances.map((instance) => <InstanceRow key={instance.id} instance={instance} canRemove={instances.length > 1} />)}
         <button type="button" onClick={add}>+ Add instance</button>
         <p className="engine-manager__note">Instances are saved in this browser. The backend always connects to localhost using only the selected port.</p>
-      </details>
+      </div> : null}
     </div>
   );
 }

@@ -2,6 +2,9 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
   type CSSProperties,
 } from "react";
 import {
@@ -14,11 +17,18 @@ import EdgeDetailsPanel from "./EdgeDetailsPanel";
 import JsonViewer from "./JsonViewer";
 import TraceMap from "./TraceMap";
 import TraceRouteAnalysis from "./TraceRouteAnalysis";
+import type { Basemap } from "../map/basemap";
 
 export const TRACE_DETAILS_DEFAULT_HEIGHT = 180;
 export const TRACE_DETAILS_MIN_HEIGHT = 140;
 
-export default function TraceInspector() {
+export default function TraceInspector({
+  basemap = "openfreemap",
+  onBasemapChange = () => undefined,
+}: {
+  basemap?: Basemap;
+  onBasemapChange?: (basemap: Basemap) => void;
+}) {
   const results = useStore((state) => state.results);
   const sourceRouteId = useStore((state) => state.traceSourceRouteId);
   const status = useStore((state) => state.traceStatus);
@@ -51,6 +61,27 @@ export default function TraceInspector() {
   const setLowerTab = useStore((state) => state.setTraceLowerTab);
   const detailsCompact =
     detailsCollapsed || (lowerTab === "edge-details" && !pinned);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [settingsHeight, setSettingsHeight] = useState(104);
+  const dragStart = useRef<{ y: number; height: number } | null>(null);
+  const resizeSettings = (height: number) => setSettingsHeight(Math.max(88, Math.min(220, height)));
+  const onSettingsPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    dragStart.current = { y: event.clientY, height: settingsHeight };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const onSettingsPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragStart.current) resizeSettings(dragStart.current.height + event.clientY - dragStart.current.y);
+  };
+  const onSettingsPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    dragStart.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+  const onSettingsKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    resizeSettings(settingsHeight + (event.key === "ArrowDown" ? 10 : -10));
+  };
   const {
     liveHeight: liveDetailsHeight,
     minimumHeight: minimumDetailsHeight,
@@ -135,25 +166,11 @@ export default function TraceInspector() {
   return (
     <main className="trace-inspector" aria-label="Trace Inspector">
       <header className="trace-toolbar">
-        <div>
-          <p className="trace-toolbar__eyebrow">MAP-MATCH DEBUGGING</p>
-          <h1>Trace Inspector — Local Valhalla</h1>
-          <p>Inspect Local Valhalla’s map-snapped interpretation of a preserved OSRM route.</p>
-        </div>
-        <button type="button" className="toolbar__fit-btn" onClick={requestFit}>
-          Fit Routes
-        </button>
-      </header>
-
-      <section className="trace-controls" aria-label="Trace controls">
-        <label>
-          <span>Source engine</span>
-          <input value="OSRM" readOnly aria-readonly="true" />
-        </label>
-        <label>
-          <span>Route</span>
+        <div className="trace-toolbar__identity"><h1>Trace Inspector</h1><span>Local Valhalla</span></div>
+        <label className="trace-route-select"><span className="sr-only">Source OSRM route</span>
           <select
             aria-label="Route"
+            title={sourceRoute?.label}
             value={sourceRoute?.id ?? ""}
             disabled={osrmRoutes.length === 0 || status === "loading"}
             onChange={(event) => setSource(event.target.value)}
@@ -163,31 +180,31 @@ export default function TraceInspector() {
             ))}
           </select>
         </label>
-        <label>
-          <span>Valhalla costing</span>
-          <input value="motorcycle" readOnly aria-readonly="true" />
-        </label>
-        <label>
-          <span>Shape match</span>
-          <input value="map_snap" readOnly aria-readonly="true" />
-        </label>
         <button
           type="button"
           className="trace-controls__run"
           disabled={!sourceRoute || status === "loading"}
           onClick={() => void runTrace()}
         >
-          {status === "loading" ? "Running Valhalla Trace…" : "Run Valhalla Trace"}
+          {status === "loading" ? "Running…" : "Run Trace"}
         </button>
         <label className="trace-controls__toggle">
-          <span>Continuity overlay</span>
           <input
             type="checkbox"
             checked={continuityOverlay}
             onChange={toggleContinuityOverlay}
           />
+          <span>Continuity</span>
         </label>
-      </section>
+        <button type="button" className="trace-toolbar__plain" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((value) => !value)}>Settings</button>
+        <button type="button" className="toolbar__fit-btn" onClick={requestFit}>Fit Routes</button>
+        <label className="trace-basemap"><span className="sr-only">Basemap</span><select aria-label="Trace basemap" value={basemap} onChange={(event) => onBasemapChange(event.target.value as Basemap)}><option value="mappls">Mappls</option><option value="openfreemap">OpenFreeMap</option></select></label>
+      </header>
+
+      {settingsOpen ? <section className="trace-settings" style={{ height: settingsHeight }} aria-label="Trace settings">
+        <dl><div><dt>Source</dt><dd>OSRM</dd></div><div><dt>Trace engine</dt><dd>Local Valhalla</dd></div><div><dt>Costing</dt><dd>motorcycle</dd></div><div><dt>Shape match</dt><dd>map_snap</dd></div></dl>
+        <div className="trace-settings__resize" role="separator" aria-label="Resize trace settings" aria-orientation="horizontal" aria-valuemin={88} aria-valuemax={220} aria-valuenow={settingsHeight} tabIndex={0} onPointerDown={onSettingsPointerDown} onPointerMove={onSettingsPointerMove} onPointerUp={onSettingsPointerUp} onKeyDown={onSettingsKeyDown}><span /></div>
+      </section> : null}
 
       {osrmRoutes.length === 0 ? (
         <div className="trace-empty" role="status">
@@ -197,27 +214,15 @@ export default function TraceInspector() {
         </div>
       ) : null}
 
-      {error ? <div className="trace-error" role="alert">{error}</div> : null}
+      {error && !usableResult ? <div className="trace-error" role="alert">{error}</div> : null}
 
       {usableResult ? (
         <section className="trace-summary" aria-label="Trace summary">
-          <div><span>Source route</span><strong>{sourceRoute?.label}</strong></div>
-          <div><span>Original OSRM points</span><strong>{usableResult.originalPointCount}</strong></div>
-          <div><span>Valhalla trace points</span><strong>{usableResult.tracePointCount}</strong></div>
-          <div>
-            <span>Exact geometry match</span>
-            <strong className={usableResult.exactGeometryMatch ? "trace-summary__yes" : "trace-summary__changed"}>
-              {usableResult.exactGeometryMatch ? "Yes" : "No"}
-            </strong>
-          </div>
           <div><span>Matched</span><strong>{pointCounts.matched}</strong></div>
           <div><span>Interpolated</span><strong>{pointCounts.interpolated}</strong></div>
           <div><span>Unmatched</span><strong>{pointCounts.unmatched}</strong></div>
-          <div><span>Point discontinuity flags</span><strong>{pointCounts.flags}</strong></div>
-          <div><span>Trace route components</span><strong>{usableResult.continuity.componentCount}</strong></div>
-          <div><span>Trace route breaks</span><strong>{usableResult.continuity.breakCount}</strong></div>
           <div>
-            <span>Routable continuity</span>
+            <span>Continuity</span>
             <strong className={
               usableResult.continuity.isContinuous === true
                 ? "trace-summary__yes"
@@ -228,34 +233,15 @@ export default function TraceInspector() {
               {continuityLabel}
             </strong>
           </div>
-
-          {usableResult.warnings.map((warning, index) => (
-            <p className="trace-summary__warning" role="status" key={`${warning.kind}:${index}`}>
-              {warning.message}
-            </p>
-          ))}
-          {usableResult.errors.map((traceError, index) => (
-            <p className="trace-summary__error" role="status" key={`${traceError.kind}:${index}`}>
-              {traceError.message}
-            </p>
-          ))}
+          <button type="button" className="trace-summary__more" aria-expanded={summaryOpen} onClick={() => setSummaryOpen((value) => !value)}>More details</button>
+          {usableResult.errors.length > 0 ? <span className="trace-summary__alert" role="alert">{usableResult.errors[0].message}</span> : usableResult.warnings.length > 0 ? <span className="trace-summary__alert" role="status">{usableResult.warnings.length} warning{usableResult.warnings.length === 1 ? "" : "s"}</span> : null}
+          {summaryOpen ? <div className="trace-summary__details">
+            <div><span>Source route</span><strong>{sourceRoute?.label}</strong></div><div><span>Original points</span><strong>{usableResult.originalPointCount}</strong></div><div><span>Trace points</span><strong>{usableResult.tracePointCount}</strong></div><div><span>Exact geometry</span><strong>{usableResult.exactGeometryMatch ? "Yes" : "No"}</strong></div><div><span>Point flags</span><strong>{pointCounts.flags}</strong></div><div><span>Components</span><strong>{usableResult.continuity.componentCount}</strong></div><div><span>Breaks</span><strong>{usableResult.continuity.breakCount}</strong></div>
+            {usableResult.warnings.map((warning, index) => <p className="trace-summary__warning" role="status" key={`${warning.kind}:${index}`}>{warning.message}</p>)}
+            {usableResult.errors.map((traceError, index) => <p className="trace-summary__error" role="status" key={`${traceError.kind}:${index}`}>{traceError.message}</p>)}
+            {(usableResult.rawTraceAttributes != null || usableResult.rawTraceRoute != null) ? <details className="trace-raw-responses"><summary>Raw Trace Responses</summary><details><summary>trace_attributes</summary><JsonViewer value={usableResult.rawTraceAttributes} /></details><details><summary>trace_route</summary><JsonViewer value={usableResult.rawTraceRoute} /></details></details> : null}
+          </div> : null}
         </section>
-      ) : null}
-
-      {usableResult &&
-      (usableResult.rawTraceAttributes != null ||
-        usableResult.rawTraceRoute != null) ? (
-        <details className="trace-raw-responses">
-          <summary>Raw Trace Responses</summary>
-          <details>
-            <summary>trace_attributes</summary>
-            <JsonViewer value={usableResult.rawTraceAttributes} />
-          </details>
-          <details>
-            <summary>trace_route</summary>
-            <JsonViewer value={usableResult.rawTraceRoute} />
-          </details>
-        </details>
       ) : null}
 
       <div
@@ -269,8 +255,9 @@ export default function TraceInspector() {
       >
         <TraceMap
           sourceRoute={sourceRoute}
+          basemap={basemap}
           compactDetails={detailsCompact}
-          layoutRevision={layoutRevision}
+          layoutRevision={layoutRevision + settingsHeight + (settingsOpen ? 1 : 0)}
         />
         <section
           ref={detailsRef}

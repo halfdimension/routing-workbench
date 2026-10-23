@@ -15,19 +15,22 @@ import EdgeDetailsPanel from "./EdgeDetailsPanel";
 import RouteAnalysis from "./RouteAnalysis";
 import RouteDifference from "./RouteDifference";
 
-const TABS = [
+const PRIMARY_TABS = [
   "Comparison",
   "Route Difference",
   "Edge Details",
   "Route Analysis",
-  "OSRM Raw Request",
-  "OSRM Response",
-  "Valhalla Raw Request",
-  "Valhalla Response",
   "Assessment",
 ] as const;
 
-type Tab = (typeof TABS)[number];
+const DIAGNOSTIC_TABS = [
+  "OSRM Raw Request",
+  "Engine A Response",
+  "Valhalla Raw Request",
+  "Engine B Response",
+] as const;
+
+type Tab = (typeof PRIMARY_TABS)[number] | (typeof DIAGNOSTIC_TABS)[number];
 
 const MIN_PANEL_HEIGHT = 180;
 
@@ -37,6 +40,7 @@ export default function BottomTabs({
   workspaceRef?: RefObject<HTMLDivElement | null>;
 }) {
   const [active, setActive] = useState<Tab>("Comparison");
+  const routingTarget = useStore((s) => s.routingTarget);
   const collapsed = useStore((s) => s.bottomCollapsed);
   const toggle = useStore((s) => s.toggleBottomCollapsed);
   const preferredPanelHeight = useStore(
@@ -76,6 +80,19 @@ export default function BottomTabs({
     previousOpenRequestId.current = edgeDetailsOpenRequestId;
   }, [collapsed, detailsPinned, edgeDetailsOpenRequestId, toggle]);
 
+  useEffect(() => {
+    if (
+      routingTarget === "prod" &&
+      (active === "OSRM Raw Request" || active === "Valhalla Raw Request")
+    ) {
+      setActive("Comparison");
+    }
+  }, [active, routingTarget]);
+
+  const diagnosticTabs = routingTarget === "prod"
+    ? DIAGNOSTIC_TABS.filter((tab) => !tab.endsWith("Raw Request"))
+    : DIAGNOSTIC_TABS;
+
   const selectTab = (tab: Tab) => {
     setActive(tab);
     if (collapsed) toggle();
@@ -108,7 +125,7 @@ export default function BottomTabs({
         </div>
       ) : null}
       <div className="bottom-tabs__strip" role="tablist" aria-label="Analysis panels">
-        {TABS.map((tab) => (
+        {PRIMARY_TABS.map((tab) => (
           <button
             key={tab}
             type="button"
@@ -126,6 +143,12 @@ export default function BottomTabs({
             ) : null}
           </button>
         ))}
+        <details className="bottom-tabs__diagnostics">
+          <summary>Requests &amp; Responses</summary>
+          <div>
+            {diagnosticTabs.map((tab) => <button key={tab} type="button" role="tab" aria-selected={active === tab} onClick={() => selectTab(tab)}>{tab}</button>)}
+          </div>
+        </details>
         <button
           type="button"
           className="bottom-tabs__collapse"
@@ -153,11 +176,11 @@ export default function BottomTabs({
           <RouteAnalysis />
         ) : active === "OSRM Raw Request" ? (
           <OsrmRawRequest />
-        ) : active === "OSRM Response" ? (
+        ) : active === "Engine A Response" ? (
           <RawResponseInspector slot="a" />
         ) : active === "Valhalla Raw Request" ? (
           <ValhallaRawRequest />
-        ) : active === "Valhalla Response" ? (
+        ) : active === "Engine B Response" ? (
           <RawResponseInspector slot="b" />
         ) : (
           <Assessment />

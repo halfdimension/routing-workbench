@@ -1,17 +1,5 @@
-/**
- * Left sidebar (Req 15.2).
- *
- * The Coordinates section hosts manual lat/lon inputs with validation
- * (CoordinateInputs, Task 14.1, Req 1.1, 17.4) and a live read-only OSRM/Valhalla
- * request preview (RequestPreview, Task 14.1, Req 1.8). Saved test cases are
- * managed via the TestCases panel (Task 26.1, Req 13).
- * The Map Selection section (Task 13.2, Req 1.2, 1.3) arms map click-to-set via
- * "Set Start on Map" / "Set Destination on Map" buttons wired to
- * `setMapClickTarget`, indicating which target is currently armed. The Request
- * Options section wires the Normal/Advanced mode toggle to the store (Req 9.1).
- */
+import type { ReactNode } from "react";
 import { useStore } from "../store";
-import Section from "./Section";
 import CoordinateInputs from "./CoordinateInputs";
 import RequestPreview from "./RequestPreview";
 import CurlImport from "./CurlImport";
@@ -24,151 +12,63 @@ interface LeftSidebarProps {
   onBasemapChange?: (basemap: Basemap) => void;
 }
 
+function WorkflowGroup({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="workflow-group"><h2>{title}</h2><div className="workflow-group__body">{children}</div></section>;
+}
+
+function ToolDisclosure({ title, children }: { title: string; children: ReactNode }) {
+  return <details className="tool-disclosure"><summary><span>{title}</span><span aria-hidden="true">›</span></summary><div className="tool-disclosure__body">{children}</div></details>;
+}
+
 function MapSelection() {
   const mapClickTarget = useStore((s) => s.mapClickTarget);
   const setMapClickTarget = useStore((s) => s.setMapClickTarget);
-
-  // Toggle arming: clicking an already-armed control disarms it.
-  const arm = (target: "start" | "dest") =>
-    setMapClickTarget(mapClickTarget === target ? null : target);
-
-  return (
-    <div className="map-selection">
-      <button
-        type="button"
-        className={
-          "map-selection__btn" +
-          (mapClickTarget === "start" ? " map-selection__btn--armed" : "")
-        }
-        aria-pressed={mapClickTarget === "start"}
-        onClick={() => arm("start")}
-      >
-        <span className="map-selection__dot map-selection__dot--start" aria-hidden="true" />
-        Set Start on Map
-      </button>
-      <button
-        type="button"
-        className={
-          "map-selection__btn" +
-          (mapClickTarget === "dest" ? " map-selection__btn--armed" : "")
-        }
-        aria-pressed={mapClickTarget === "dest"}
-        onClick={() => arm("dest")}
-      >
-        <span className="map-selection__dot map-selection__dot--dest" aria-hidden="true" />
-        Set Destination on Map
-      </button>
-      <p className="map-selection__hint">
-        {mapClickTarget === "start"
-          ? "Click the map to set the start."
-          : mapClickTarget === "dest"
-            ? "Click the map to set the destination."
-            : "Arm a control, then click the map. Or right-click the map for options."}
-      </p>
-    </div>
-  );
+  const arm = (target: "start" | "dest") => setMapClickTarget(mapClickTarget === target ? null : target);
+  return <div className="map-selection">
+    <button type="button" className={mapClickTarget === "start" ? "map-selection__btn map-selection__btn--armed" : "map-selection__btn"} aria-pressed={mapClickTarget === "start"} onClick={() => arm("start")}><span className="map-selection__dot map-selection__dot--start" aria-hidden="true" /> Pick Start</button>
+    <button type="button" className={mapClickTarget === "dest" ? "map-selection__btn map-selection__btn--armed" : "map-selection__btn"} aria-pressed={mapClickTarget === "dest"} onClick={() => arm("dest")}><span className="map-selection__dot map-selection__dot--dest" aria-hidden="true" /> Pick Destination</button>
+    {mapClickTarget ? <p className="map-selection__hint">Click the map to set the {mapClickTarget === "start" ? "start" : "destination"}.</p> : null}
+  </div>;
 }
 
 function ModeToggle() {
   const mode = useStore((s) => s.mode);
   const setMode = useStore((s) => s.setMode);
-
-  return (
-    <div className="mode-toggle" role="group" aria-label="Request mode">
-      <button
-        type="button"
-        className={
-          "mode-toggle__btn" + (mode === "normal" ? " mode-toggle__btn--active" : "")
-        }
-        aria-pressed={mode === "normal"}
-        onClick={() => setMode("normal")}
-      >
-        Normal
-      </button>
-      <button
-        type="button"
-        className={
-          "mode-toggle__btn" +
-          (mode === "advanced" ? " mode-toggle__btn--active" : "")
-        }
-        aria-pressed={mode === "advanced"}
-        onClick={() => setMode("advanced")}
-      >
-        Advanced
-      </button>
-    </div>
-  );
+  return <div className="mode-toggle" role="group" aria-label="Request mode">
+    <button type="button" className={mode === "normal" ? "mode-toggle__btn mode-toggle__btn--active" : "mode-toggle__btn"} aria-pressed={mode === "normal"} onClick={() => setMode("normal")}>Normal</button>
+    <button type="button" className={mode === "advanced" ? "mode-toggle__btn mode-toggle__btn--active" : "mode-toggle__btn"} aria-pressed={mode === "advanced"} onClick={() => setMode("advanced")}>Advanced</button>
+  </div>;
 }
 
-export default function LeftSidebar({
-  basemap = "openfreemap",
-  onBasemapChange = () => undefined,
-}: LeftSidebarProps) {
+function BasemapSelect({ basemap, onChange }: { basemap: Basemap; onChange: (value: Basemap) => void }) {
+  return <label className="basemap-control"><span>Basemap</span><select aria-label="Basemap" value={basemap} onChange={(event) => onChange(event.target.value as Basemap)}><option value="mappls" disabled={!MAPPLS_TILE_URL}>Mappls</option><option value="openfreemap">OpenFreeMap</option></select></label>;
+}
+
+export default function LeftSidebar({ basemap = "openfreemap", onBasemapChange = () => undefined }: LeftSidebarProps) {
   const collapsed = useStore((s) => s.leftCollapsed);
   const toggle = useStore((s) => s.toggleLeftCollapsed);
-
-  return (
-    <aside
-      className={"left-sidebar" + (collapsed ? " left-sidebar--collapsed" : "")}
-      aria-label="Controls"
-    >
-      {/* Collapse/expand chevron near the sidebar's inner (right) edge. When
-          collapsed only this control is rendered, so the sidebar shows a narrow
-          rail with a reachable expand affordance. Contents read from the store,
-          so simply not rendering them while collapsed loses no application
-          state. */}
-      <button
-        type="button"
-        className="panel-collapse panel-collapse--left"
-        data-testid="collapse-left"
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? "Expand left panel" : "Collapse left panel"}
-        title={collapsed ? "Expand left panel" : "Collapse left panel"}
-        onClick={toggle}
-      >
-        {collapsed ? "›" : "‹"}
-      </button>
-
-      {!collapsed && (
-        <div className="left-sidebar__content">
-          <Section title="Basemap">
-            <select
-              className="basemap-select"
-              aria-label="Basemap"
-              value={basemap}
-              onChange={(event) =>
-                onBasemapChange(event.target.value as Basemap)
-              }
-            >
-              <option value="mappls" disabled={!MAPPLS_TILE_URL}>
-                Mappls{MAPPLS_TILE_URL ? "" : " (not configured)"}
-              </option>
-              <option value="openfreemap">OpenFreeMap</option>
-            </select>
-          </Section>
-          <Section title="Coordinates">
-            <CoordinateInputs />
-          </Section>
-          <Section title="Map Selection">
-            <MapSelection />
-          </Section>
-          <Section title="Request Options">
-            <ModeToggle />
-          </Section>
-          <Section title="Engine Instances">
-            <EngineInstanceManager />
-          </Section>
-          <Section title="Request Preview">
-            <RequestPreview />
-          </Section>
-          <Section title="Saved Test Cases">
-            <TestCases />
-          </Section>
-          <Section title="Curl Import">
-            <CurlImport />
-          </Section>
-        </div>
-      )}
-    </aside>
-  );
+  const routingTarget = useStore((s) => s.routingTarget);
+  const resultsTarget = useStore((s) => s.results?.routingTarget);
+  const staleTarget = resultsTarget && resultsTarget !== routingTarget ? resultsTarget : null;
+  return <aside className={collapsed ? "left-sidebar left-sidebar--collapsed" : "left-sidebar"} aria-label="Controls">
+    <button type="button" className="panel-collapse panel-collapse--left" data-testid="collapse-left" aria-expanded={!collapsed} aria-label={collapsed ? "Expand left panel" : "Collapse left panel"} title={collapsed ? "Expand left panel" : "Collapse left panel"} onClick={toggle}>{collapsed ? "›" : "‹"}</button>
+    {!collapsed ? <div className="left-sidebar__content">
+      {staleTarget ? <p className="result-provenance" role="status">Showing previous {staleTarget === "local" ? "Local" : "Prod"} results — compare to load {routingTarget === "local" ? "Local" : "Prod"}.</p> : null}
+      <WorkflowGroup title="Map"><BasemapSelect basemap={basemap} onChange={onBasemapChange} /></WorkflowGroup>
+      <WorkflowGroup title={routingTarget === "prod" ? "Production Route" : "Route Setup"}><CoordinateInputs /><MapSelection /></WorkflowGroup>
+      {routingTarget === "local" ? <>
+        <WorkflowGroup title="Compare Engines"><EngineInstanceManager view="selector" /></WorkflowGroup>
+        <WorkflowGroup title="Request Mode"><ModeToggle /></WorkflowGroup>
+        <WorkflowGroup title="Additional Tools">
+          <ToolDisclosure title="Saved Test Cases"><TestCases /></ToolDisclosure>
+          <ToolDisclosure title="Manage Instances"><EngineInstanceManager view="manager" /></ToolDisclosure>
+          <ToolDisclosure title="Request Preview"><RequestPreview /></ToolDisclosure>
+          <ToolDisclosure title="Curl Import"><CurlImport /></ToolDisclosure>
+        </WorkflowGroup>
+      </> : <>
+        <WorkflowGroup title="Routing Engines"><div className="prod-engines" aria-label="Production routing engines"><div><strong>A</strong><span>Production OSRM</span></div><div><strong>B</strong><span>Production Valhalla</span></div><p>Uses configured production APIs</p></div></WorkflowGroup>
+        <WorkflowGroup title="Additional Tools"><ToolDisclosure title="Saved Test Cases"><TestCases /></ToolDisclosure><ToolDisclosure title="Prod Request Preview"><RequestPreview /></ToolDisclosure></WorkflowGroup>
+      </>}
+    </div> : null}
+  </aside>;
 }

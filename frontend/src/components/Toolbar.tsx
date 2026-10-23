@@ -53,9 +53,7 @@ export default function Toolbar() {
 
   return (
     <header className="toolbar">
-      <h1 className="toolbar__title">
-        Bike Routing Comparison &amp; Debugging Dashboard
-      </h1>
+      <h1 className="toolbar__title">Routing Comparison</h1>
 
       <div className="toolbar__actions">
         <div className="toolbar__target" aria-label="Routing target">
@@ -71,10 +69,10 @@ export default function Toolbar() {
             {isLoading ? <span className="button-spinner" aria-hidden="true" /> : null}
             {isLoading ? "Comparing…" : "Compare Routes"}
           </button>
-          <button type="button" className={`toolbar__debug-btn${edgeDebugEnabled ? " toolbar__debug-btn--active" : ""}`} aria-pressed={edgeDebugEnabled} disabled={routingTarget === "prod"} title={routingTarget === "prod" ? "Edge Debug is available for Local Valhalla only." : undefined} onClick={() => setEdgeDebugEnabled(!edgeDebugEnabled)}>
+          {routingTarget === "local" ? <button type="button" className={`toolbar__debug-btn${edgeDebugEnabled ? " toolbar__debug-btn--active" : ""}`} aria-pressed={edgeDebugEnabled} onClick={() => setEdgeDebugEnabled(!edgeDebugEnabled)}>
             <span className="toolbar__debug-dot" aria-hidden="true" />
             Edge Debug: {edgeDebugEnabled ? "ON" : "OFF"}
-          </button>
+          </button> : null}
         </div>
 
         <div className="toolbar__control-group toolbar__control-group--map">
@@ -97,10 +95,10 @@ export default function Toolbar() {
 
       <div className="toolbar__spacer" />
 
-      <div className="health-indicators" aria-label="Engine health status">
+      {routingTarget === "local" ? <div className="health-indicators" aria-label="Default local service health">
         <HealthIndicator name="Local OSRM" status={health.osrm} />
         <HealthIndicator name="Local Valhalla" status={health.valhalla} />
-      </div>
+      </div> : null}
     </header>
   );
 }

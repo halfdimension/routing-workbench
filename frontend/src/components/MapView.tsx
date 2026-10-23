@@ -36,11 +36,9 @@ import {
   dashboardMapOptions,
 } from "../map/initialize";
 import {
-  MAPPLS_LAYER_ID,
-  MAPPLS_SOURCE_ID,
-  MAPPLS_TILE_URL,
   type Basemap,
 } from "../map/basemap";
+import { inlineOsmRasterStyle, styleForBasemap } from "../map/style";
 import { buildRoutesFeatureCollection } from "../map/routes";
 import { routeColor } from "../map/color";
 import {
@@ -268,6 +266,7 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
   const previousActiveDebugIdsRef = useRef<string[]>([]);
   const pendingResultFitRef = useRef(false);
+  const fallbackAppliedRef = useRef(false);
 
   const start = useStore((s) => s.start);
   const dest = useStore((s) => s.dest);
@@ -334,6 +333,7 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
   const bottomCollapsed = useStore((s) => s.bottomCollapsed);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [basemapNotice, setBasemapNotice] = useState<string | null>(null);
   const [overlapChooser, setOverlapChooser] =
     useState<OverlapChooserState | null>(null);
   const [routeStyleExpanded, setRouteStyleExpanded] = useState(false);
@@ -380,33 +380,17 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
       container,
       "MapView",
     );
-
-    const installMapplsBasemap = () => {
-      if (!MAPPLS_TILE_URL) return;
-
-      if (!map.getSource(MAPPLS_SOURCE_ID)) {
-        map.addSource(MAPPLS_SOURCE_ID, {
-          type: "raster",
-          tiles: [MAPPLS_TILE_URL],
-          tileSize: 256,
-          attribution: "© MapmyIndia / Mappls",
-        });
-      }
-
-      if (!map.getLayer(MAPPLS_LAYER_ID)) {
-        map.addLayer({
-          id: MAPPLS_LAYER_ID,
-          type: "raster",
-          source: MAPPLS_SOURCE_ID,
-          layout: {
-            visibility:
-              basemapRef.current === "mappls" ? "visible" : "none",
-          },
-        });
-      }
+    const handleBasemapError = (event: unknown) => {
+      const value = event as { sourceId?: unknown; error?: { message?: unknown } };
+      const message = typeof value.error?.message === "string" ? value.error.message : "";
+      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
+      fallbackAppliedRef.current = true;
+      const camera = readMapCamera(map);
+      map.setStyle?.(inlineOsmRasterStyle());
+      if (camera) restoreMapCamera(map, camera);
+      setBasemapNotice("Vector basemap could not be loaded. Showing the Legacy map.");
     };
-
-    map.on("load", installMapplsBasemap);
+    map.on("error", handleBasemapError);
 
     const saveCamera = (updateTiltButton: boolean) => {
       const camera = readMapCamera(map);
@@ -533,7 +517,7 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
         saveCamera(false);
       }
       map.off("moveend", handleMoveEnd);
-      map.off("load", installMapplsBasemap);
+      map.off("error", handleBasemapError);
       detachMapLifecycle();
       if (debugMoveFrame !== null) cancelAnimationFrame(debugMoveFrame);
       map.off("mousemove", handleMouseMove);
@@ -558,14 +542,13 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
 
   useEffect(() => {
     basemapRef.current = basemap;
+    fallbackAppliedRef.current = false;
+    setBasemapNotice(null);
     const map = mapRef.current;
-    if (map?.getLayer(MAPPLS_LAYER_ID)) {
-      map.setLayoutProperty(
-        MAPPLS_LAYER_ID,
-        "visibility",
-        basemap === "mappls" ? "visible" : "none",
-      );
-    }
+    if (!map?.setStyle) return;
+    const camera = readMapCamera(map);
+    map.setStyle(styleForBasemap(basemap));
+    if (camera) restoreMapCamera(map, camera);
   }, [basemap]);
 
   // --- Start marker sync (Task 13.2, Req 1.7) ------------------------------
@@ -1255,6 +1238,7 @@ export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
   return (
     <div className="map-view" data-testid="map-view" aria-label="Map">
       <div ref={containerRef} className="map-view__canvas" data-testid="map-canvas" />
+      {basemapNotice ? <div className="basemap-notice" role="status"><span>{basemapNotice}</span><button type="button" aria-label="Dismiss basemap message" onClick={() => setBasemapNotice(null)}>×</button></div> : null}
       <button
         type="button"
         className={"map-tilt" + (tilted ? " map-tilt--active" : "")}

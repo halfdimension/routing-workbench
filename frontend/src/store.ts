@@ -491,6 +491,7 @@ function attachComparisonRoles(
   results: CompareResponse,
   engineA: EngineInstance,
   engineB: EngineInstance,
+  routingTarget: RoutingTarget = "local",
 ): CompareResponse {
   const enrich = (
     result: EngineResult,
@@ -512,8 +513,32 @@ function attachComparisonRoles(
       })),
     };
   };
-  const a = enrich(results.engineA ?? results.osrm, "a", engineA);
-  const b = enrich(results.engineB ?? results.valhalla, "b", engineB);
+  // Production ignores the local selectors and always compares the backend's
+  // canonical OSRM and Valhalla services. Never stamp local ports/labels onto
+  // those envelopes: it makes accurate raw responses look as though they came
+  // from a selected localhost instance.
+  const prodA: EngineInstance = {
+    id: "prod-osrm",
+    type: "osrm",
+    port: 0,
+    label: "Production OSRM",
+  };
+  const prodB: EngineInstance = {
+    id: "prod-valhalla",
+    type: "valhalla",
+    port: 0,
+    label: "Production Valhalla",
+  };
+  const a = enrich(
+    results.engineA ?? results.osrm,
+    "a",
+    routingTarget === "prod" ? prodA : engineA,
+  );
+  const b = enrich(
+    results.engineB ?? results.valhalla,
+    "b",
+    routingTarget === "prod" ? prodB : engineB,
+  );
   // The API adapter already supplies role aliases for a dynamic response.
   // Preserve a legacy debug object byte-for-byte so existing consumers that
   // compare or persist it do not observe an unrelated shape change.
@@ -917,7 +942,7 @@ export const useStore = create<AppState>((set, get) => ({
           ? [engineA, engineB] as const
           : []),
       );
-      const results = attachComparisonRoles(response, engineA, engineB);
+      const results = attachComparisonRoles(response, engineA, engineB, routingTarget);
       const routes = flattenRoutes(results);
       // Initialize visibility to all-visible for the returned routes only.
       const visibility = buildVisibility(routes, () => true);
@@ -963,7 +988,10 @@ export const useStore = create<AppState>((set, get) => ({
         traceAnalysisFocusedSegmentId: null,
         compareStatus: "done",
         comparisonResultRevision: previous.comparisonResultRevision + 1,
-        lastComparedInstances: { a: { ...engineA }, b: { ...engineB } },
+        lastComparedInstances:
+          routingTarget === "local"
+            ? { a: { ...engineA }, b: { ...engineB } }
+            : null,
         lastError: null,
         traceSourceRouteId: nextTraceSourceId,
         ...(keepTrace

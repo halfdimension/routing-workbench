@@ -11,7 +11,6 @@
  * stay fully usable (Req 17.13 isolation).
  */
 import { useStore } from "../store";
-import Section from "./Section";
 import EngineStatusPanel from "./EngineStatusPanel";
 import RouteVisibilityList from "./RouteVisibilityList";
 import BulkVisibilityControls from "./BulkVisibilityControls";
@@ -44,24 +43,20 @@ export default function RightSidebar() {
 
       {!collapsed && (
         <div className="right-sidebar__content">
-          <Section title="Engine Status">
+          <section className="results-group"><h2>Results</h2>
             <div className="engine-status-list">
               <EngineStatusPanel slot="a" />
               <EngineStatusPanel slot="b" />
             </div>
-          </Section>
-          <Section title="Engine A Routes">
-            <RouteVisibilityList slot="a" />
-          </Section>
-          <Section title="Engine B Routes">
-            <RouteVisibilityList slot="b" />
-          </Section>
-          <Section title="Visibility Controls">
+          </section>
+          <section className="results-group"><h2>Routes</h2>
+            <h3>Engine A</h3><RouteVisibilityList slot="a" />
+            <h3>Engine B</h3><RouteVisibilityList slot="b" />
             <BulkVisibilityControls />
-          </Section>
-          <Section title="Selected Route">
+          </section>
+          <section className="results-group"><h2>Selected Route</h2>
             <SelectedRouteInfo />
-          </Section>
+          </section>
         </div>
       )}
     </aside>

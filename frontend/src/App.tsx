@@ -66,7 +66,7 @@ export default function App() {
           </div>
         </div>
       ) : (
-        <TraceInspector />
+        <TraceInspector basemap={basemap} onBasemapChange={setBasemap} />
       )}
     </div>
   );

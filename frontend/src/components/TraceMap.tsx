@@ -32,6 +32,8 @@ import {
   type RenderedDebugFeature,
 } from "../map/debugHitTest";
 import EdgeDebugInspector from "./EdgeDebugInspector";
+import type { Basemap } from "../map/basemap";
+import { inlineOsmRasterStyle, styleForBasemap } from "../map/style";
 
 const TRACE_ROUTES_SOURCE = "trace-inspector-routes";
 const TRACE_DEBUG_SOURCE = "trace-inspector-debug";
@@ -93,10 +95,12 @@ export function fitTraceMap(
 
 export default function TraceMap({
   sourceRoute,
+  basemap = "openfreemap",
   compactDetails = false,
   layoutRevision = 0,
 }: {
   sourceRoute?: NormalizedRoute;
+  basemap?: Basemap;
   compactDetails?: boolean;
   layoutRevision?: number;
 }) {
@@ -104,6 +108,7 @@ export default function TraceMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const previousActiveIds = useRef<string[]>([]);
   const pendingResultFitRef = useRef(false);
+  const fallbackAppliedRef = useRef(false);
   const handledTraceRevisionRef = useRef<number | null>(null);
 
   const result = useStore((state) => state.traceResult);
@@ -145,6 +150,8 @@ export default function TraceMap({
       )
     );
   });
+  const [legendExpanded, setLegendExpanded] = useState(false);
+  const [basemapNotice, setBasemapNotice] = useState<string | null>(null);
 
   const traceRouteId = sourceRoute ? `trace:${sourceRoute.id}` : "trace:none";
   const usableResult =
@@ -160,6 +167,16 @@ export default function TraceMap({
     pinnedMatchedPointIndex,
     usableResult,
   ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.setStyle) return;
+    fallbackAppliedRef.current = false;
+    setBasemapNotice(null);
+    const camera = readMapCamera(map);
+    map.setStyle(styleForBasemap(basemap));
+    if (camera) restoreMapCamera(map, camera);
+  }, [basemap]);
 
   const visibility = useMemo(() => ({ [traceRouteId]: true }), [traceRouteId]);
   const routeLabels = useMemo(
@@ -208,6 +225,17 @@ export default function TraceMap({
       container,
       "TraceMap",
     );
+    const handleBasemapError = (event: unknown) => {
+      const value = event as { sourceId?: unknown; error?: { message?: unknown } };
+      const message = typeof value.error?.message === "string" ? value.error.message : "";
+      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
+      fallbackAppliedRef.current = true;
+      const camera = readMapCamera(map);
+      map.setStyle?.(inlineOsmRasterStyle());
+      if (camera) restoreMapCamera(map, camera);
+      setBasemapNotice("Vector basemap could not be loaded. Showing the Legacy map.");
+    };
+    map.on("error", handleBasemapError);
 
     const saveCamera = (updateTiltButton: boolean) => {
       const camera = readMapCamera(map);
@@ -303,6 +331,7 @@ export default function TraceMap({
     map.on("click", onClick);
     return () => {
       detachMapLifecycle();
+      map.off("error", handleBasemapError);
       if (hoverFrame !== null) cancelAnimationFrame(hoverFrame);
       map.off("mousemove", onMove);
       map.off("mouseleave", onLeave);
@@ -921,8 +950,10 @@ export default function TraceMap({
   return (
     <div className="trace-map" aria-label="Trace Inspector map" data-testid="trace-map">
       <div ref={containerRef} className="trace-map__canvas" />
-      <div className="trace-map__legend" aria-label="Trace map legend">
-        <span><i className="trace-map__swatch trace-map__swatch--original" />Original OSRM</span>
+      {basemapNotice ? <div className="basemap-notice" role="status"><span>{basemapNotice}</span><button type="button" aria-label="Dismiss basemap message" onClick={() => setBasemapNotice(null)}>×</button></div> : null}
+      <div className={legendExpanded ? "trace-map__legend trace-map__legend--expanded" : "trace-map__legend"} aria-label="Trace map legend">
+        <button type="button" aria-expanded={legendExpanded} onClick={() => setLegendExpanded((value) => !value)}>Legend {legendExpanded ? "▴" : "▾"}</button>
+        {legendExpanded ? <><span><i className="trace-map__swatch trace-map__swatch--original" />Original OSRM</span>
         <span><i className="trace-map__swatch trace-map__swatch--snapped" />Valhalla map-match</span>
         <span><i className="trace-map__dot trace-map__dot--matched" />Matched</span>
         <span><i className="trace-map__dot trace-map__dot--interpolated" />Interpolated</span>
@@ -934,7 +965,7 @@ export default function TraceMap({
             <span><i className="trace-map__dot trace-map__dot--break" />Break endpoints</span>
             <span><i className="trace-map__swatch trace-map__swatch--gap" />Break gap — diagnostic, not routed</span>
           </>
-        ) : null}
+        ) : null}</> : null}
       </div>
       {activeMatchedPoint ? (
         <aside className="trace-point-card" aria-label="Matched point details">

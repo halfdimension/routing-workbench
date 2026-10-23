@@ -126,7 +126,21 @@ describe("TraceInspector", () => {
   it("asks for a comparison when no OSRM route exists", () => {
     render(<TraceInspector />);
     expect(screen.getByText("Run a route comparison first.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Run Valhalla Trace" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run Trace" })).toBeDisabled();
+  });
+
+  it("keeps settings compact, read-only, and keyboard resizable without tracing", () => {
+    render(<TraceInspector />);
+    expect(screen.queryByRole("region", { name: "Trace settings" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const settings = screen.getByRole("region", { name: "Trace settings" });
+    expect(settings).toHaveTextContent("Local Valhalla");
+    expect(settings).toHaveTextContent("motorcycle");
+    const handle = screen.getByRole("separator", { name: "Resize trace settings" });
+    expect(handle).toHaveAttribute("aria-valuenow", "104");
+    fireEvent.keyDown(handle, { key: "ArrowDown" });
+    expect(handle).toHaveAttribute("aria-valuenow", "114");
+    expect(api.valhallaTrace).not.toHaveBeenCalled();
   });
 
   it("does not redirect Prod comparison routes into Local trace_attributes", () => {
@@ -140,8 +154,8 @@ describe("TraceInspector", () => {
     expect(
       screen.getByText("Trace Inspector is Local-only. Run a Local comparison first."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Run Valhalla Trace" })).toBeDisabled();
-    expect(screen.getByRole("heading", { name: /Local Valhalla/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run Trace" })).toBeDisabled();
+    expect(screen.getByText("Local Valhalla")).toBeInTheDocument();
   });
 
   it("populates the OSRM source selector and selects an alternate independently", async () => {
@@ -166,15 +180,17 @@ describe("TraceInspector", () => {
     }));
     render(<TraceInspector />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Run Valhalla Trace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run Trace" }));
 
     await waitFor(() => expect(api.valhallaTrace).toHaveBeenCalledWith("osrm:0", "encoded-0"));
+    fireEvent.click(screen.getByRole("button", { name: "More details" }));
     expect(await screen.findByText("Valhalla map_snap changed the source geometry.")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("No")).toBeInTheDocument();
     expect(useStore.getState().selectedRouteId).toBe("osrm:1");
     expect(screen.getByTestId("trace-map")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Legend/ }));
     expect(screen.getByText("Original OSRM")).toBeInTheDocument();
     expect(screen.getByText("Valhalla map-match")).toBeInTheDocument();
   });
@@ -195,7 +211,7 @@ describe("TraceInspector", () => {
     }));
     render(<TraceInspector />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Run Valhalla Trace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run Trace" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Valhalla is unavailable.");
     expect(useStore.getState().results).toBe(before);
@@ -266,15 +282,16 @@ describe("TraceInspector", () => {
     render(<TraceInspector />);
 
     const summary = screen.getByRole("region", { name: "Trace summary" });
-    expect(within(summary).getByText("Point discontinuity flags").parentElement).toHaveTextContent("0");
-    expect(within(summary).getByText("Trace route breaks").parentElement).toHaveTextContent("1");
-    expect(within(summary).getByText("Routable continuity").parentElement).toHaveTextContent("BROKEN");
+    expect(within(summary).getByText("Continuity").parentElement).toHaveTextContent("BROKEN");
     expect(within(summary).getByText("Matched").parentElement).toHaveTextContent("1");
     expect(within(summary).getByText("Interpolated").parentElement).toHaveTextContent("1");
     expect(within(summary).getByText("Unmatched").parentElement).toHaveTextContent("1");
+    fireEvent.click(within(summary).getByRole("button", { name: "More details" }));
+    expect(within(summary).getByText("Point flags").parentElement).toHaveTextContent("0");
+    expect(within(summary).getByText("Breaks").parentElement).toHaveTextContent("1");
     expect(screen.queryByText(/Valhalla Primary|Valhalla Alt/)).not.toBeInTheDocument();
 
-    const toggle = screen.getByRole("checkbox", { name: "Continuity overlay" });
+    const toggle = screen.getByRole("checkbox", { name: "Continuity" });
     fireEvent.click(toggle);
     expect(useStore.getState().traceContinuityOverlayEnabled).toBe(true);
   });

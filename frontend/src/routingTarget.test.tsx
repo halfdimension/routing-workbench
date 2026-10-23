@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import Toolbar from "./components/Toolbar";
 import RequestPreview from "./components/RequestPreview";
 import RawResponseInspector from "./components/RawResponseInspector";
+import LeftSidebar from "./components/LeftSidebar";
 import { useStore } from "./store";
 import type { CompareResponse } from "./types";
 
@@ -74,7 +75,7 @@ describe("routing target", () => {
     expect(useStore.getState().dest).toEqual(dest);
     expect(useStore.getState().results).toBe(oldResults);
     expect(useStore.getState().edgeDebugEnabled).toBe(false);
-    expect(screen.getByRole("button", { name: "Edge Debug: OFF" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Edge Debug: OFF" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Local" }));
     expect(screen.getByRole("button", { name: "Edge Debug: OFF" })).not.toBeDisabled();
@@ -92,6 +93,26 @@ describe("routing target", () => {
       "prod",
     );
     expect(useStore.getState().results?.routingTarget).toBe("prod");
+    expect(useStore.getState().results?.engineA?.instance).toMatchObject({
+      type: "osrm",
+      label: "Production OSRM",
+    });
+    expect(useStore.getState().results?.engineB?.instance).toMatchObject({
+      type: "valhalla",
+      label: "Production Valhalla",
+    });
+    expect(useStore.getState().lastComparedInstances).toBeNull();
+  });
+
+  it("renders a minimal Prod sidebar without local-only engine tools", () => {
+    useStore.setState({ routingTarget: "prod", results: response("local") });
+    render(<LeftSidebar />);
+    expect(screen.getByText("Production OSRM")).toBeInTheDocument();
+    expect(screen.getByText("Production Valhalla")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Swap Engine A and Engine B")).not.toBeInTheDocument();
+    expect(screen.queryByText("Manage Instances")).not.toBeInTheDocument();
+    expect(screen.queryByText("Curl Import")).not.toBeInTheDocument();
+    expect(screen.getByText(/Showing previous Local results/)).toBeInTheDocument();
   });
 
   it("keeps displayed result provenance Local after the selector moves to Prod", () => {

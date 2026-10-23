@@ -87,7 +87,7 @@ export default function RawResponseInspector({ engine, slot }: { engine?: Engine
   );
 
   const engineName = slot
-    ? `Engine ${slot.toUpperCase()} · ${selected?.instance?.label ?? ENGINE_NAME[selected?.engine ?? resolvedEngine]}${selected?.instance ? ` · :${selected.instance.port}` : ""}`
+    ? `Engine ${slot.toUpperCase()} · ${selected?.instance?.label ?? ENGINE_NAME[selected?.engine ?? resolvedEngine]}${selected?.instance?.port ? ` · :${selected.instance.port}` : ""}`
     : ENGINE_NAME[resolvedEngine];
   const testKey = slot ?? resolvedEngine;
   const hasRaw = resp.raw !== undefined && resp.raw !== null;

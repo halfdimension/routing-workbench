@@ -44,7 +44,7 @@ export default function EngineStatusPanel({ engine, slot }: { engine?: Engine; s
         : results[engine ?? "osrm"];
   const resolvedEngine = envelope?.engine ?? engine ?? "osrm";
   const name = slot
-    ? `Engine ${slot.toUpperCase()} · ${envelope?.instance?.label ?? engineDisplayName(resolvedEngine)}${envelope?.instance ? ` · :${envelope.instance.port}` : ""}`
+    ? `Engine ${slot.toUpperCase()} · ${envelope?.instance?.label ?? engineDisplayName(resolvedEngine)}${envelope?.instance?.port ? ` · :${envelope.instance.port}` : ""}`
     : engineDisplayName(resolvedEngine);
   const key = slot ?? resolvedEngine;
 
