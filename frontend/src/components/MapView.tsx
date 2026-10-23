@@ -35,6 +35,12 @@ import {
   attachDashboardMapLifecycle,
   dashboardMapOptions,
 } from "../map/initialize";
+import {
+  MAPPLS_LAYER_ID,
+  MAPPLS_SOURCE_ID,
+  MAPPLS_TILE_URL,
+  type Basemap,
+} from "../map/basemap";
 import { buildRoutesFeatureCollection } from "../map/routes";
 import { routeColor } from "../map/color";
 import {
@@ -250,9 +256,14 @@ interface OverlapChooserState {
   candidates: RouteCandidate[];
 }
 
-export default function MapView() {
+interface MapViewProps {
+  basemap?: Basemap;
+}
+
+export default function MapView({ basemap = "openfreemap" }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const basemapRef = useRef<Basemap>(basemap);
   const startMarkerRef = useRef<maplibregl.Marker | null>(null);
   const destMarkerRef = useRef<maplibregl.Marker | null>(null);
   const previousActiveDebugIdsRef = useRef<string[]>([]);
@@ -369,6 +380,33 @@ export default function MapView() {
       container,
       "MapView",
     );
+
+    const installMapplsBasemap = () => {
+      if (!MAPPLS_TILE_URL) return;
+
+      if (!map.getSource(MAPPLS_SOURCE_ID)) {
+        map.addSource(MAPPLS_SOURCE_ID, {
+          type: "raster",
+          tiles: [MAPPLS_TILE_URL],
+          tileSize: 256,
+          attribution: "© MapmyIndia / Mappls",
+        });
+      }
+
+      if (!map.getLayer(MAPPLS_LAYER_ID)) {
+        map.addLayer({
+          id: MAPPLS_LAYER_ID,
+          type: "raster",
+          source: MAPPLS_SOURCE_ID,
+          layout: {
+            visibility:
+              basemapRef.current === "mappls" ? "visible" : "none",
+          },
+        });
+      }
+    };
+
+    map.on("load", installMapplsBasemap);
 
     const saveCamera = (updateTiltButton: boolean) => {
       const camera = readMapCamera(map);
@@ -495,6 +533,7 @@ export default function MapView() {
         saveCamera(false);
       }
       map.off("moveend", handleMoveEnd);
+      map.off("load", installMapplsBasemap);
       detachMapLifecycle();
       if (debugMoveFrame !== null) cancelAnimationFrame(debugMoveFrame);
       map.off("mousemove", handleMouseMove);
@@ -516,6 +555,18 @@ export default function MapView() {
     // Init once on mount; store actions are stable references.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    basemapRef.current = basemap;
+    const map = mapRef.current;
+    if (map?.getLayer(MAPPLS_LAYER_ID)) {
+      map.setLayoutProperty(
+        MAPPLS_LAYER_ID,
+        "visibility",
+        basemap === "mappls" ? "visible" : "none",
+      );
+    }
+  }, [basemap]);
 
   // --- Start marker sync (Task 13.2, Req 1.7) ------------------------------
   useEffect(() => {

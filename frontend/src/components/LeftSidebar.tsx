@@ -17,6 +17,12 @@ import RequestPreview from "./RequestPreview";
 import CurlImport from "./CurlImport";
 import TestCases from "./TestCases";
 import EngineInstanceManager from "./EngineInstanceManager";
+import { MAPPLS_TILE_URL, type Basemap } from "../map/basemap";
+
+interface LeftSidebarProps {
+  basemap?: Basemap;
+  onBasemapChange?: (basemap: Basemap) => void;
+}
 
 function MapSelection() {
   const mapClickTarget = useStore((s) => s.mapClickTarget);
@@ -94,7 +100,10 @@ function ModeToggle() {
   );
 }
 
-export default function LeftSidebar() {
+export default function LeftSidebar({
+  basemap = "openfreemap",
+  onBasemapChange = () => undefined,
+}: LeftSidebarProps) {
   const collapsed = useStore((s) => s.leftCollapsed);
   const toggle = useStore((s) => s.toggleLeftCollapsed);
 
@@ -122,6 +131,21 @@ export default function LeftSidebar() {
 
       {!collapsed && (
         <div className="left-sidebar__content">
+          <Section title="Basemap">
+            <select
+              className="basemap-select"
+              aria-label="Basemap"
+              value={basemap}
+              onChange={(event) =>
+                onBasemapChange(event.target.value as Basemap)
+              }
+            >
+              <option value="mappls" disabled={!MAPPLS_TILE_URL}>
+                Mappls{MAPPLS_TILE_URL ? "" : " (not configured)"}
+              </option>
+              <option value="openfreemap">OpenFreeMap</option>
+            </select>
+          </Section>
           <Section title="Coordinates">
             <CoordinateInputs />
           </Section>

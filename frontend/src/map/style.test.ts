@@ -6,38 +6,16 @@
  */
 import { describe, it, expect } from "vitest";
 import { resolveMapStyle, inlineOsmRasterStyle, OSM_TILE_URL } from "./style";
-import type { StyleSpecification } from "maplibre-gl";
+import { OPENFREEMAP_STYLE_URL } from "./basemap";
 
 describe("resolveMapStyle", () => {
-  it("returns the inline OSM raster style object when no style URL is set", () => {
-    const style = resolveMapStyle(undefined) as StyleSpecification;
-
-    expect(typeof style).toBe("object");
-    expect(style.version).toBe(8);
-
-    const osm = style.sources.osm as {
-      type: string;
-      tiles?: string[];
-      tileSize?: number;
-      attribution?: string;
-    };
-    expect(osm.type).toBe("raster");
-    expect(osm.tiles?.[0]).toBe(OSM_TILE_URL);
-    expect(osm.tileSize).toBe(256);
-    expect(osm.attribution).toMatch(/OpenStreetMap/);
-
-    // Exactly one raster layer consuming the osm source.
-    expect(style.layers).toHaveLength(1);
-    expect(style.layers[0]).toMatchObject({
-      id: "osm",
-      type: "raster",
-      source: "osm",
-    });
+  it("returns OpenFreeMap when no style URL is set", () => {
+    expect(resolveMapStyle(undefined)).toBe(OPENFREEMAP_STYLE_URL);
   });
 
-  it("treats an empty / whitespace style URL as unset (inline style)", () => {
-    expect(typeof resolveMapStyle("")).toBe("object");
-    expect(typeof resolveMapStyle("   ")).toBe("object");
+  it("treats an empty / whitespace style URL as unset", () => {
+    expect(resolveMapStyle("")).toBe(OPENFREEMAP_STYLE_URL);
+    expect(resolveMapStyle("   ")).toBe(OPENFREEMAP_STYLE_URL);
   });
 
   it("returns the style URL string verbatim when set and non-empty", () => {

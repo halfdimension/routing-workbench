@@ -10,6 +10,9 @@ interface ImportMetaEnv {
    */
   readonly VITE_MAP_STYLE_URL?: string;
 
+  /** Mappls raster tile template used by the optional basemap switcher. */
+  readonly VITE_MAPPLS_TILE_URL?: string;
+
   /**
    * Optional override for the backend API base URL.
    *

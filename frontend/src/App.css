@@ -349,6 +349,17 @@ select:focus-visible,
 .right-sidebar--collapsed .panel-collapse--right:hover { transform: translateX(-50%) scale(1.04); }
 .left-sidebar__content,
 .right-sidebar__content { padding-top: 31px; }
+.basemap-select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
 .map-view { flex: 1 1 auto; min-width: 0; position: relative; color: var(--text-muted); background: #dbe4ee; }
 .map-view__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .map-view .maplibregl-ctrl-group { overflow: hidden; border: 1px solid var(--border); border-radius: 9px; box-shadow: var(--shadow-float); }

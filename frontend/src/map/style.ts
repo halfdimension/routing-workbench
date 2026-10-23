@@ -6,13 +6,11 @@
  * document). When it is set and non-empty, it is used directly as the map
  * style.
  *
- * When it is absent, we do NOT treat any raster tile URL as a MapLibre style
- * URL. Instead we build an INLINE MapLibre style object that declares a raster
- * source pointing at the standard OpenStreetMap tile server plus a single
- * raster layer consuming it. This gives a no-key, road-level basemap suitable
- * for route inspection.
+ * When it is absent, the OpenFreeMap Liberty style is used. The inline OSM
+ * helper remains available for callers that specifically need a raster style.
  */
 import type { StyleSpecification } from "maplibre-gl";
+import { OPENFREEMAP_STYLE_URL } from "./basemap";
 
 /** The standard OpenStreetMap raster tile template (no API key required). */
 export const OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -49,8 +47,7 @@ export function inlineOsmRasterStyle(): StyleSpecification {
  *
  * @param styleUrl Optional override, defaulting to `VITE_MAP_STYLE_URL`. When a
  *   non-empty string is provided, it is returned verbatim (used directly as the
- *   MapLibre style URL). Otherwise the inline OSM raster style object is
- *   returned.
+ *   MapLibre style URL). Otherwise the OpenFreeMap style URL is returned.
  *
  * Designed as a pure function (with an injectable override) so it can be unit
  * tested without touching MapLibre or jsdom.
@@ -61,5 +58,5 @@ export function resolveMapStyle(
   if (typeof styleUrl === "string" && styleUrl.trim() !== "") {
     return styleUrl;
   }
-  return inlineOsmRasterStyle();
+  return OPENFREEMAP_STYLE_URL;
 }
