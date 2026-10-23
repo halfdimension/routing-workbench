@@ -6,7 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { resolveMapStyle, inlineOsmRasterStyle, mapplsRasterStyle, OSM_TILE_URL, styleForBasemap } from "./style";
-import { basemapOptions, OPENFREEMAP_POSITRON_STYLE_URL, OPENFREEMAP_STYLE_URL } from "./basemap";
+import { basemapOptions, defaultBasemap, OPENFREEMAP_POSITRON_STYLE_URL, OPENFREEMAP_STYLE_URL } from "./basemap";
 
 describe("resolveMapStyle", () => {
   it("returns OpenFreeMap when no style URL is set", () => {
@@ -45,11 +45,20 @@ describe("resolveMapStyle", () => {
   });
 
   it("only offers Mappls when a tile URL is configured", () => {
-    expect(basemapOptions("").map((option) => option.label)).toEqual([
+    expect(basemapOptions("", "").map((option) => option.label)).toEqual([
       "Detailed", "Clean", "Legacy",
     ]);
-    expect(basemapOptions("https://tiles.example/{z}/{x}/{y}.png").map(
+    expect(basemapOptions("https://tiles.example/{z}/{x}/{y}.png", "").map(
       (option) => option.label,
     )).toEqual(["Detailed", "Clean", "Legacy", "Mappls"]);
+  });
+
+  it("defaults to Mappls only when configured and no custom style wins", () => {
+    expect(defaultBasemap("", "")).toBe("detailed");
+    expect(defaultBasemap("https://tiles.example/{z}/{x}/{y}.png", "")).toBe("mappls");
+    expect(defaultBasemap("https://tiles.example/{z}/{x}/{y}.png", "https://example.com/style.json")).toBe("custom");
+    expect(basemapOptions("ignored", "https://example.com/style.json")).toEqual([
+      { value: "custom", label: "Custom style" },
+    ]);
   });
 });

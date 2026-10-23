@@ -18,7 +18,7 @@ import {
 import App from "./App";
 import { useStore } from "./store";
 import type { CompareDebug, NormalizedRoute } from "./types";
-import { MAPPLS_TILE_URL } from "./map/basemap";
+import { BASEMAP_OPTIONS, defaultBasemap } from "./map/basemap";
 
 vi.mock("./api", () => ({
   API_BASE_URL: "http://localhost:8000",
@@ -107,22 +107,27 @@ describe("App layout shell", () => {
     expect(screen.getByTestId("map-view")).toBeInTheDocument();
   });
 
-  it("shares Detailed, Clean, and Legacy basemaps between both screens", async () => {
+  it("keeps one shared basemap selector in each screen toolbar", async () => {
     await renderApp();
     const comparisonSelect = screen.getByRole("combobox", { name: "Basemap" });
-    expect(comparisonSelect).toHaveValue("detailed");
-    expect(within(comparisonSelect).getByRole("option", { name: "Detailed" })).toBeInTheDocument();
-    expect(within(comparisonSelect).getByRole("option", { name: "Clean" })).toBeInTheDocument();
-    expect(within(comparisonSelect).getByRole("option", { name: "Legacy" })).toBeInTheDocument();
-    expect(Boolean(within(comparisonSelect).queryByRole("option", { name: "Mappls" }))).toBe(Boolean(MAPPLS_TILE_URL));
-    fireEvent.change(comparisonSelect, { target: { value: "clean" } });
+    expect(comparisonSelect).toHaveValue(defaultBasemap());
+    expect(comparisonSelect.closest("header")).toHaveClass("toolbar");
+    expect(screen.getAllByRole("combobox", { name: "Basemap" })).toHaveLength(1);
+    expect(within(screen.getByLabelText("Controls")).queryByRole("combobox", { name: "Basemap" })).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("Controls")).queryByRole("heading", { name: "Map" })).not.toBeInTheDocument();
+    const optionValues = Array.from(comparisonSelect.querySelectorAll("option"), (option) => option.value);
+    expect(optionValues).toEqual(BASEMAP_OPTIONS.map((option) => option.value));
+    const nextBasemap = BASEMAP_OPTIONS.find((option) => option.value !== defaultBasemap())?.value ?? defaultBasemap();
+    fireEvent.change(comparisonSelect, { target: { value: nextBasemap } });
 
     fireEvent.click(screen.getByRole("button", { name: "Trace Inspector" }));
-    const traceSelect = screen.getByRole("combobox", { name: "Trace basemap" });
-    expect(traceSelect).toHaveValue("clean");
-    expect(within(traceSelect).getByRole("option", { name: "Detailed" })).toBeInTheDocument();
-    expect(within(traceSelect).getByRole("option", { name: "Clean" })).toBeInTheDocument();
-    expect(within(traceSelect).getByRole("option", { name: "Legacy" })).toBeInTheDocument();
+    const traceSelect = screen.getByRole("combobox", { name: "Basemap" });
+    expect(traceSelect).toHaveValue(nextBasemap);
+    expect(traceSelect.closest("header")).toHaveClass("trace-toolbar");
+    expect(Array.from(traceSelect.querySelectorAll("option"), (option) => option.value)).toEqual(optionValues);
+
+    fireEvent.click(screen.getByRole("button", { name: "Route Comparison" }));
+    expect(screen.getByRole("combobox", { name: "Basemap" })).toHaveValue(nextBasemap);
   });
 
   it("renders all bottom tab labels including Route Difference after Comparison", async () => {

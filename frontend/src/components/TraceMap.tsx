@@ -32,7 +32,7 @@ import {
   type RenderedDebugFeature,
 } from "../map/debugHitTest";
 import EdgeDebugInspector from "./EdgeDebugInspector";
-import type { Basemap } from "../map/basemap";
+import { defaultBasemap, type Basemap } from "../map/basemap";
 import { inlineOsmRasterStyle, styleForBasemap } from "../map/style";
 
 const TRACE_ROUTES_SOURCE = "trace-inspector-routes";
@@ -95,7 +95,7 @@ export function fitTraceMap(
 
 export default function TraceMap({
   sourceRoute,
-  basemap = "detailed",
+  basemap = defaultBasemap(),
   compactDetails = false,
   layoutRevision = 0,
 }: {
@@ -110,7 +110,6 @@ export default function TraceMap({
   const pendingResultFitRef = useRef(false);
   const fallbackAppliedRef = useRef(false);
   const basemapRef = useRef<Basemap>(basemap);
-  const basemapAppliedRef = useRef(false);
   const handledTraceRevisionRef = useRef<number | null>(null);
 
   const result = useStore((state) => state.traceResult);
@@ -176,10 +175,6 @@ export default function TraceMap({
     basemapRef.current = basemap;
     fallbackAppliedRef.current = false;
     setBasemapNotice(null);
-    if (!basemapAppliedRef.current) {
-      basemapAppliedRef.current = true;
-      if (basemap === "detailed") return;
-    }
     const camera = readMapCamera(map);
     map.setStyle(styleForBasemap(basemap));
     if (camera) restoreMapCamera(map, camera);
@@ -220,7 +215,9 @@ export default function TraceMap({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const map = new maplibregl.Map(dashboardMapOptions(container));
+    const map = new maplibregl.Map(
+      dashboardMapOptions(container, basemapRef.current),
+    );
     mapRef.current = map;
     if (import.meta.env.DEV || import.meta.env.VITE_EXPOSE_MAP === "1") {
       (window as unknown as { __traceMap?: unknown }).__traceMap = map;
@@ -235,7 +232,21 @@ export default function TraceMap({
     const handleBasemapError = (event: unknown) => {
       const value = event as { sourceId?: unknown; error?: { message?: unknown } };
       const message = typeof value.error?.message === "string" ? value.error.message : "";
-      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || !["detailed", "clean"].includes(basemapRef.current) || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
+      if (basemapRef.current === "mappls") {
+        if (!fallbackAppliedRef.current) {
+          fallbackAppliedRef.current = true;
+          setBasemapNotice("Mappls basemap could not be loaded.");
+        }
+        return;
+      }
+      if (basemapRef.current === "custom") {
+        if (!fallbackAppliedRef.current) {
+          fallbackAppliedRef.current = true;
+          setBasemapNotice("Custom basemap could not be loaded.");
+        }
+        return;
+      }
+      if (!["detailed", "clean"].includes(basemapRef.current) || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
       fallbackAppliedRef.current = true;
       const camera = readMapCamera(map);
       map.setStyle?.(inlineOsmRasterStyle());

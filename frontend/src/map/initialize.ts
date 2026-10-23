@@ -1,5 +1,6 @@
 import type maplibregl from "maplibre-gl";
-import { resolveMapStyle } from "./style";
+import { defaultBasemap, type Basemap } from "./basemap";
+import { resolveMapStyle, styleForBasemap } from "./style";
 
 export const DASHBOARD_MAP_CENTER: [number, number] = [77.209, 28.6139];
 export const DASHBOARD_MAP_ZOOM = 10;
@@ -7,10 +8,11 @@ export const DASHBOARD_MAP_ZOOM = 10;
 /** Constructor options shared by every dashboard MapLibre instance. */
 export function dashboardMapOptions(
   container: HTMLElement,
+  basemap: Basemap = defaultBasemap(),
 ): maplibregl.MapOptions {
   return {
     container,
-    style: resolveMapStyle(),
+    style: basemap === "detailed" ? resolveMapStyle() : styleForBasemap(basemap),
     center: DASHBOARD_MAP_CENTER,
     zoom: DASHBOARD_MAP_ZOOM,
   };
@@ -34,8 +36,10 @@ export function attachDashboardMapLifecycle(
     }
   };
   const handleError = (event: unknown) => {
-    const error = (event && (event as { error?: unknown }).error) || event;
-    console.error(`[${label}] MapLibre error:`, error);
+    // MapLibre errors can contain the full requested tile URL. Keep configured
+    // credentials out of console/UI messages while still surfacing the event.
+    void event;
+    console.error(`[${label}] MapLibre reported a map loading error.`);
   };
   const handleLoad = () => {
     const canvas = map.getCanvas();

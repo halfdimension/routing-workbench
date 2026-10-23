@@ -9,6 +9,8 @@
  */
 import { useStore } from "../store";
 import type { EngineHealth } from "../types";
+import { defaultBasemap, type Basemap } from "../map/basemap";
+import BasemapSelector from "./BasemapSelector";
 
 const HEALTH_LABEL: Record<EngineHealth, string> = {
   reachable: "reachable",
@@ -37,7 +39,13 @@ function HealthIndicator({
   );
 }
 
-export default function Toolbar() {
+export default function Toolbar({
+  basemap = defaultBasemap(),
+  onBasemapChange = () => undefined,
+}: {
+  basemap?: Basemap;
+  onBasemapChange?: (basemap: Basemap) => void;
+}) {
   const runCompare = useStore((s) => s.runCompare);
   const requestFit = useStore((s) => s.requestFit);
   const focusMap = useStore((s) => s.focusMap);
@@ -84,6 +92,7 @@ export default function Toolbar() {
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4" /><path d="M5 5h6v6H5z" /></svg>
             Focus Map
           </button>
+          <BasemapSelector value={basemap} onChange={onBasemapChange} />
         </div>
       </div>
 

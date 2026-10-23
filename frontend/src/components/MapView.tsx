@@ -36,6 +36,7 @@ import {
   dashboardMapOptions,
 } from "../map/initialize";
 import {
+  defaultBasemap,
   type Basemap,
 } from "../map/basemap";
 import { inlineOsmRasterStyle, styleForBasemap } from "../map/style";
@@ -301,7 +302,7 @@ interface MapViewProps {
   basemap?: Basemap;
 }
 
-export default function MapView({ basemap = "detailed" }: MapViewProps) {
+export default function MapView({ basemap = defaultBasemap() }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const basemapRef = useRef<Basemap>(basemap);
@@ -405,7 +406,9 @@ export default function MapView({ basemap = "detailed" }: MapViewProps) {
     const container = containerRef.current;
     if (!container) return;
 
-    const map = new maplibregl.Map(dashboardMapOptions(container));
+    const map = new maplibregl.Map(
+      dashboardMapOptions(container, basemapRef.current),
+    );
     mapRef.current = map;
 
     // Dev/diagnostic hook: expose the live map instance so a headless browser
@@ -427,7 +430,21 @@ export default function MapView({ basemap = "detailed" }: MapViewProps) {
     const handleBasemapError = (event: unknown) => {
       const value = event as { sourceId?: unknown; error?: { message?: unknown } };
       const message = typeof value.error?.message === "string" ? value.error.message : "";
-      if (import.meta.env.VITE_MAP_STYLE_URL?.trim() || !["detailed", "clean"].includes(basemapRef.current) || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
+      if (basemapRef.current === "mappls") {
+        if (!fallbackAppliedRef.current) {
+          fallbackAppliedRef.current = true;
+          setBasemapNotice("Mappls basemap could not be loaded.");
+        }
+        return;
+      }
+      if (basemapRef.current === "custom") {
+        if (!fallbackAppliedRef.current) {
+          fallbackAppliedRef.current = true;
+          setBasemapNotice("Custom basemap could not be loaded.");
+        }
+        return;
+      }
+      if (!["detailed", "clean"].includes(basemapRef.current) || fallbackAppliedRef.current || value.sourceId || map.isStyleLoaded?.() || !/style|fetch|load|network/i.test(message)) return;
       fallbackAppliedRef.current = true;
       const camera = readMapCamera(map);
       map.setStyle?.(inlineOsmRasterStyle());
@@ -594,7 +611,7 @@ export default function MapView({ basemap = "detailed" }: MapViewProps) {
     // Avoid replacing that same initial style (and touching camera state).
     if (!basemapAppliedRef.current) {
       basemapAppliedRef.current = true;
-      if (basemap === "detailed") return;
+      return;
     }
     const camera = readMapCamera(map);
     map.setStyle(styleForBasemap(basemap));

@@ -17,14 +17,14 @@ import RightSidebar from "./components/RightSidebar";
 import BottomTabs from "./components/BottomTabs";
 import { useStore } from "./store";
 import TraceInspector from "./components/TraceInspector";
-import type { Basemap } from "./map/basemap";
+import { defaultBasemap, type Basemap } from "./map/basemap";
 
 type Screen = "comparison" | "trace";
 
 export default function App() {
   const refreshHealth = useStore((s) => s.refreshHealth);
   const [screen, setScreen] = useState<Screen>("comparison");
-  const [basemap, setBasemap] = useState<Basemap>("detailed");
+  const [basemap, setBasemap] = useState<Basemap>(() => defaultBasemap());
   const comparisonWorkspaceRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -53,10 +53,10 @@ export default function App() {
       </nav>
       {screen === "comparison" ? (
         <div className="comparison-screen">
-          <Toolbar />
+          <Toolbar basemap={basemap} onBasemapChange={setBasemap} />
           <div className="comparison-workspace" ref={comparisonWorkspaceRef}>
             <div className="middle-row">
-              <LeftSidebar basemap={basemap} onBasemapChange={setBasemap} />
+              <LeftSidebar />
               <MapView basemap={basemap} />
               <RightSidebar />
             </div>

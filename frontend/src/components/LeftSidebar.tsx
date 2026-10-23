@@ -5,12 +5,6 @@ import RequestPreview from "./RequestPreview";
 import CurlImport from "./CurlImport";
 import TestCases from "./TestCases";
 import EngineInstanceManager from "./EngineInstanceManager";
-import { BASEMAP_OPTIONS, type Basemap } from "../map/basemap";
-
-interface LeftSidebarProps {
-  basemap?: Basemap;
-  onBasemapChange?: (basemap: Basemap) => void;
-}
 
 function WorkflowGroup({ title, children }: { title: string; children: ReactNode }) {
   return <section className="workflow-group"><h2>{title}</h2><div className="workflow-group__body">{children}</div></section>;
@@ -40,11 +34,7 @@ function ModeToggle() {
   </div>;
 }
 
-function BasemapSelect({ basemap, onChange }: { basemap: Basemap; onChange: (value: Basemap) => void }) {
-  return <label className="basemap-control"><span>Basemap</span><select aria-label="Basemap" value={basemap} onChange={(event) => onChange(event.target.value as Basemap)}>{BASEMAP_OPTIONS.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select></label>;
-}
-
-export default function LeftSidebar({ basemap = "detailed", onBasemapChange = () => undefined }: LeftSidebarProps) {
+export default function LeftSidebar() {
   const collapsed = useStore((s) => s.leftCollapsed);
   const toggle = useStore((s) => s.toggleLeftCollapsed);
   const routingTarget = useStore((s) => s.routingTarget);
@@ -54,7 +44,6 @@ export default function LeftSidebar({ basemap = "detailed", onBasemapChange = ()
     <button type="button" className="panel-collapse panel-collapse--left" data-testid="collapse-left" aria-expanded={!collapsed} aria-label={collapsed ? "Expand left panel" : "Collapse left panel"} title={collapsed ? "Expand left panel" : "Collapse left panel"} onClick={toggle}>{collapsed ? "›" : "‹"}</button>
     {!collapsed ? <div className="left-sidebar__content">
       {staleTarget ? <p className="result-provenance" role="status">Showing previous {staleTarget === "local" ? "Local" : "Prod"} results — compare to load {routingTarget === "local" ? "Local" : "Prod"}.</p> : null}
-      <WorkflowGroup title="Map"><BasemapSelect basemap={basemap} onChange={onBasemapChange} /></WorkflowGroup>
       <WorkflowGroup title={routingTarget === "prod" ? "Production Route" : "Route Setup"}><CoordinateInputs /><MapSelection /></WorkflowGroup>
       {routingTarget === "local" ? <>
         <WorkflowGroup title="Compare Engines"><EngineInstanceManager view="selector" /></WorkflowGroup>

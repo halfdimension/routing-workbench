@@ -17,13 +17,14 @@ import EdgeDetailsPanel from "./EdgeDetailsPanel";
 import JsonViewer from "./JsonViewer";
 import TraceMap from "./TraceMap";
 import TraceRouteAnalysis from "./TraceRouteAnalysis";
-import { BASEMAP_OPTIONS, type Basemap } from "../map/basemap";
+import { defaultBasemap, type Basemap } from "../map/basemap";
+import BasemapSelector from "./BasemapSelector";
 
 export const TRACE_DETAILS_DEFAULT_HEIGHT = 180;
 export const TRACE_DETAILS_MIN_HEIGHT = 140;
 
 export default function TraceInspector({
-  basemap = "detailed",
+  basemap = defaultBasemap(),
   onBasemapChange = () => undefined,
 }: {
   basemap?: Basemap;
@@ -201,7 +202,7 @@ export default function TraceInspector({
         </label>
         <button type="button" className="trace-toolbar__plain" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((value) => !value)}>Settings</button>
         <button type="button" className="toolbar__fit-btn" onClick={requestFit}>Fit Routes</button>
-        <label className="trace-basemap"><span className="sr-only">Basemap</span><select aria-label="Trace basemap" value={basemap} onChange={(event) => onBasemapChange(event.target.value as Basemap)}>{BASEMAP_OPTIONS.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select></label>
+        <BasemapSelector value={basemap} onChange={onBasemapChange} />
       </header>
 
       {settingsOpen ? <section className="trace-settings" style={{ height: settingsHeight }} aria-label="Trace settings">

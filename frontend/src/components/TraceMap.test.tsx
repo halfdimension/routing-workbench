@@ -5,7 +5,8 @@ import TraceMap, {
   fitTraceMap,
 } from "./TraceMap";
 import { useStore } from "../store";
-import { resolveMapStyle } from "../map/style";
+import { styleForBasemap } from "../map/style";
+import { defaultBasemap } from "../map/basemap";
 import type {
   NormalizedRoute,
   ValhallaDebugSegment,
@@ -121,6 +122,12 @@ class MockMap {
   });
 
   getLayer = vi.fn((id: string) => this.layers.get(id));
+
+  setStyle = vi.fn(() => {
+    this.sources.clear();
+    this.layers.clear();
+    styleLoaded = false;
+  });
 }
 
 vi.mock("maplibre-gl", () => ({
@@ -242,7 +249,7 @@ describe("TraceMap rendering lifecycle", () => {
 
     render(<TraceMap sourceRoute={route} />);
 
-    expect(constructorConfig?.style).toEqual(resolveMapStyle());
+    expect(constructorConfig?.style).toEqual(styleForBasemap(defaultBasemap()));
     expect(data).toEqual({
       type: "FeatureCollection",
       features: [
@@ -397,6 +404,30 @@ describe("TraceMap camera persistence", () => {
     const restoredMap = instances[1];
     expect(restoredMap.jumpTo).toHaveBeenCalledWith(customCamera);
     expect(restoredMap.fitBounds).not.toHaveBeenCalled();
+  });
+
+  it("switches basemaps in place, preserves the camera, and rehydrates trace layers", () => {
+    const runValhallaTrace = vi.fn();
+    useStore.setState({ runValhallaTrace });
+    const view = render(<TraceMap sourceRoute={sourceRoute()} basemap="detailed" />);
+    const map = instances[0];
+    map.camera = { center: [76.5, 27.5], zoom: 13, bearing: 17, pitch: 34 };
+    map.jumpTo.mockClear();
+    map.fitBounds.mockClear();
+
+    view.rerender(<TraceMap sourceRoute={sourceRoute()} basemap="clean" />);
+
+    expect(map.setStyle).toHaveBeenCalledOnce();
+    expect(map.jumpTo).toHaveBeenCalledWith(map.camera);
+    expect(instances).toHaveLength(1);
+    expect(map.fitBounds).not.toHaveBeenCalled();
+    expect(runValhallaTrace).not.toHaveBeenCalled();
+
+    styleLoaded = true;
+    act(() => map.emit("style.load"));
+    expect(map.getSource("trace-inspector-routes")).toBeDefined();
+    expect(map.getSource("trace-matched-points")).toBeDefined();
+    expect(map.getSource("trace-continuity")).toBeDefined();
   });
 
   it("fits a new trace result once instead of restoring the old trace camera", () => {
