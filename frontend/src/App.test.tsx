@@ -109,13 +109,13 @@ describe("App layout shell", () => {
 
   it("keeps one shared basemap selector in each screen toolbar", async () => {
     await renderApp();
-    const comparisonSelector = screen.getByRole("button", { name: "Basemap" });
+    const comparisonSelector = screen.getByRole("button", { name: /^Basemap:/ });
     expect(comparisonSelector).toHaveTextContent(
       BASEMAP_OPTIONS.find((option) => option.value === defaultBasemap())?.label ?? "",
     );
     expect(comparisonSelector.closest("header")).toHaveClass("toolbar");
-    expect(screen.getAllByRole("button", { name: "Basemap" })).toHaveLength(1);
-    expect(within(screen.getByLabelText("Controls")).queryByRole("button", { name: "Basemap" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Basemap:/ })).toHaveLength(1);
+    expect(within(screen.getByLabelText("Controls")).queryByRole("button", { name: /^Basemap:/ })).not.toBeInTheDocument();
     expect(within(screen.getByLabelText("Controls")).queryByRole("heading", { name: "Map" })).not.toBeInTheDocument();
     fireEvent.click(comparisonSelector);
     const comparisonListbox = screen.getByRole("listbox", { name: "Basemap options" });
@@ -128,7 +128,7 @@ describe("App layout shell", () => {
     expect(api.compare).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Trace Inspector" }));
-    const traceSelector = screen.getByRole("button", { name: "Basemap" });
+    const traceSelector = screen.getByRole("button", { name: /^Basemap:/ });
     expect(traceSelector).toHaveTextContent(nextLabel);
     expect(traceSelector.closest("header")).toHaveClass("trace-toolbar");
     fireEvent.click(traceSelector);
@@ -136,7 +136,7 @@ describe("App layout shell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Route Comparison" }));
     expect(screen.queryByRole("listbox", { name: "Basemap options" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Basemap" })).toHaveTextContent(nextLabel);
+    expect(screen.getByRole("button", { name: /^Basemap:/ })).toHaveTextContent(nextLabel);
   });
 
   it("renders all bottom tab labels including Route Difference after Comparison", async () => {

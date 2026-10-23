@@ -107,7 +107,13 @@ export default function BasemapSelector({
       setOpen(false);
       triggerRef.current?.focus();
     } else if (event.key === "Tab") {
+      // Closing the listbox unmounts the currently focused element. Move focus
+      // back to the always-mounted trigger first so the browser's sequential
+      // focus navigation continues from the control (Tab -> next, Shift+Tab ->
+      // previous) instead of dropping to document.body. Default is not
+      // prevented, so native Tab/Shift+Tab proceeds from the trigger.
       setOpen(false);
+      triggerRef.current?.focus();
     }
   };
 
@@ -117,7 +123,7 @@ export default function BasemapSelector({
         ref={triggerRef}
         type="button"
         className="toolbar-basemap__trigger"
-        aria-label="Basemap"
+        aria-label={selectedOption ? `Basemap: ${selectedOption.label}` : "Basemap"}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}

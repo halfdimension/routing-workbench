@@ -6,7 +6,7 @@ import BasemapSelector from "./BasemapSelector";
 describe("BasemapSelector", () => {
   it("shows every available choice and identifies the selected option", () => {
     render(<BasemapSelector value="clean" />);
-    const trigger = screen.getByRole("button", { name: "Basemap" });
+    const trigger = screen.getByRole("button", { name: "Basemap: Clean" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(trigger);
@@ -21,14 +21,14 @@ describe("BasemapSelector", () => {
     const onChange = vi.fn();
     render(<div><BasemapSelector value="detailed" onChange={onChange} /><button type="button">Outside</button></div>);
 
-    fireEvent.click(screen.getByRole("button", { name: "Basemap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Basemap: Detailed" }));
     fireEvent.pointerMove(screen.getByRole("option", { name: "Clean" }));
     expect(screen.getByRole("option", { name: "Clean" })).toHaveClass("toolbar-basemap__option--active");
     fireEvent.click(screen.getByRole("option", { name: "Clean" }));
     expect(onChange).toHaveBeenCalledWith("clean");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Basemap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Basemap: Detailed" }));
     fireEvent.pointerDown(screen.getByRole("button", { name: "Outside" }));
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
@@ -36,7 +36,7 @@ describe("BasemapSelector", () => {
   it("supports arrow keys, Home, End, Enter, Space, and Escape", () => {
     const onChange = vi.fn();
     render(<BasemapSelector value="detailed" onChange={onChange} />);
-    const trigger = screen.getByRole("button", { name: "Basemap" });
+    const trigger = screen.getByRole("button", { name: "Basemap: Detailed" });
 
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
     let listbox = screen.getByRole("listbox", { name: "Basemap options" });
@@ -68,7 +68,7 @@ describe("BasemapSelector", () => {
       { value: "legacy" as const, label: "Legacy" },
     ];
     render(<BasemapSelector value="detailed" onChange={onChange} options={options} />);
-    const trigger = screen.getByRole("button", { name: "Basemap" });
+    const trigger = screen.getByRole("button", { name: "Basemap: Detailed" });
 
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
     const listbox = screen.getByRole("listbox");
@@ -77,5 +77,66 @@ describe("BasemapSelector", () => {
     fireEvent.click(screen.getByRole("option", { name: "Clean" }));
     expect(onChange).not.toHaveBeenCalled();
     expect(listbox).toBeInTheDocument();
+  });
+
+  it("exposes the selected provider in the trigger's accessible name", () => {
+    const { rerender } = render(<BasemapSelector value="detailed" />);
+    expect(screen.getByRole("button")).toHaveAccessibleName("Basemap: Detailed");
+
+    rerender(<BasemapSelector value="clean" />);
+    expect(screen.getByRole("button")).toHaveAccessibleName("Basemap: Clean");
+
+    rerender(<BasemapSelector value="legacy" />);
+    expect(screen.getByRole("button")).toHaveAccessibleName("Basemap: Legacy");
+
+    rerender(
+      <BasemapSelector
+        value="custom"
+        options={[{ value: "custom", label: "Custom style" }]}
+      />,
+    );
+    expect(screen.getByRole("button")).toHaveAccessibleName("Basemap: Custom style");
+  });
+
+  it("closes on Tab and returns focus to the mounted trigger without selecting", () => {
+    const onChange = vi.fn();
+    render(
+      <div>
+        <BasemapSelector value="detailed" onChange={onChange} />
+        <button type="button">After</button>
+      </div>,
+    );
+    const trigger = screen.getByRole("button", { name: "Basemap: Detailed" });
+
+    fireEvent.click(trigger);
+    const listbox = screen.getByRole("listbox", { name: "Basemap options" });
+    fireEvent.keyDown(listbox, { key: "Tab" });
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+    // Focus is restored to the still-mounted trigger, never lost to <body>,
+    // so the browser can continue native Tab navigation from the control.
+    expect(trigger).toHaveFocus();
+    expect(document.body).not.toHaveFocus();
+  });
+
+  it("closes on Shift+Tab and returns focus to the trigger without selecting", () => {
+    const onChange = vi.fn();
+    render(
+      <div>
+        <button type="button">Before</button>
+        <BasemapSelector value="detailed" onChange={onChange} />
+      </div>,
+    );
+    const trigger = screen.getByRole("button", { name: "Basemap: Detailed" });
+
+    fireEvent.click(trigger);
+    const listbox = screen.getByRole("listbox", { name: "Basemap options" });
+    fireEvent.keyDown(listbox, { key: "Tab", shiftKey: true });
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+    expect(document.body).not.toHaveFocus();
   });
 });
