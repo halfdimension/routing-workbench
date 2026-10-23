@@ -10,6 +10,20 @@
 /** The two routing engines under comparison. */
 export type Engine = "osrm" | "valhalla";
 export type RoutingTarget = "local" | "prod";
+export type ComparisonSlot = "a" | "b";
+
+export interface EngineInstance {
+  id: string;
+  type: Engine;
+  port: number;
+  label: string;
+}
+
+export interface EngineInstanceSpec {
+  type: Engine;
+  port: number;
+  label?: string | null;
+}
 
 /**
  * A simple lat/lon coordinate as used for start/dest inputs.
@@ -43,6 +57,8 @@ export interface NormalizedRoute {
   cost: number | null;
   /** The route's original engine object, unmodified. */
   raw: unknown;
+  slot?: ComparisonSlot | null;
+  instance?: EngineInstanceSpec | null;
 }
 
 /** Classification of an engine-level failure (Req 17). */
@@ -70,6 +86,7 @@ export interface RouteWarning {
   kind: string;
   /** Actionable, identifies the affected route. */
   message: string;
+  slot?: ComparisonSlot | null;
 }
 
 /**
@@ -90,6 +107,8 @@ export interface EngineResult {
   rawSource?: "engine-json" | "protobuf-derived";
   warnings: RouteWarning[];
   error: EngineError | null;
+  slot?: ComparisonSlot | null;
+  instance?: EngineInstanceSpec | null;
 }
 
 /** OSRM annotation values for one geometry segment. */
@@ -160,6 +179,7 @@ interface DebugSegmentBase {
   segmentIndex: number;
   /** One edge may contain several shape points (notably Valhalla edges). */
   coordinates: [number, number][];
+  slot?: ComparisonSlot | null;
 }
 
 export interface OsrmDebugSegment extends DebugSegmentBase {
@@ -235,12 +255,16 @@ export interface TraceContinuitySummary {
 export interface CompareDebug {
   osrm: EngineDebugResult;
   valhalla: EngineDebugResult;
+  engineA?: EngineDebugResult;
+  engineB?: EngineDebugResult;
 }
 
 /** Response of `POST /api/compare` — one envelope per engine. */
 export interface CompareResponse {
   osrm: EngineResult;
   valhalla: EngineResult;
+  engineA?: EngineResult;
+  engineB?: EngineResult;
   /** Target that produced these results; optional for legacy cached fixtures. */
   routingTarget?: RoutingTarget;
   /** Present only when the request opted into edge-debug extraction. */

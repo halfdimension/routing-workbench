@@ -117,7 +117,10 @@ function AssessmentCard({ route }: { route: NormalizedRoute }) {
 
   // Warnings for THIS route (match engine + routeIndex) (Req 17.11).
   const warnings = allWarnings(results).filter(
-    (w) => w.engine === route.engine && w.routeIndex === route.index,
+    (w) =>
+      w.engine === route.engine &&
+      w.routeIndex === route.index &&
+      (!w.slot || !route.slot || w.slot === route.slot),
   );
 
   return (
@@ -126,7 +129,7 @@ function AssessmentCard({ route }: { route: NormalizedRoute }) {
         <span
           className="assessment-card__swatch"
           aria-hidden="true"
-          style={{ background: routeColor(route.engine, route.index) }}
+          style={{ background: routeColor(route.engine, route.index, route.slot) }}
         />
         <span className="assessment-card__title">{route.label}</span>
         <span className="assessment-card__kind">{kind}</span>
@@ -134,7 +137,7 @@ function AssessmentCard({ route }: { route: NormalizedRoute }) {
 
       <dl className="assessment-card__fields">
         <dt>Engine</dt>
-        <dd>{engineName}</dd>
+        <dd>{route.slot ? `Engine ${route.slot.toUpperCase()} · ` : ""}{route.instance?.label ?? engineName}{route.instance ? ` · ${engineName} :${route.instance.port}` : ""}</dd>
         <dt>Distance</dt>
         <dd>{formatDistanceKm(route.distanceMeters)}</dd>
         <dt>Duration</dt>
@@ -180,7 +183,12 @@ export default function Assessment() {
   // the error stays visible even though the route isn't in `routes` (Req 17.11).
   const droppedWarnings = allWarnings(results).filter(
     (w) =>
-      !routes.some((r) => r.engine === w.engine && r.index === w.routeIndex),
+      !routes.some(
+        (r) =>
+          r.engine === w.engine &&
+          r.index === w.routeIndex &&
+          (!w.slot || !r.slot || w.slot === r.slot),
+      ),
   );
 
   if (routes.length === 0) {
@@ -224,7 +232,7 @@ function DroppedRoutes({ warnings }: { warnings: RouteWarning[] }) {
           <li key={i} className="assessment-warning">
             <span className="assessment-warning__badge">Warning</span>
             <span className="assessment-warning__route">
-              {w.engine === "osrm" ? "OSRM" : "Valhalla"} #{w.routeIndex}
+              {w.slot ? `Engine ${w.slot.toUpperCase()} · ` : ""}{w.engine === "osrm" ? "OSRM" : "Valhalla"} #{w.routeIndex}
             </span>
             <span className="assessment-warning__kind">{w.kind}</span>
             <span className="assessment-warning__message">{w.message}</span>

@@ -46,15 +46,15 @@ export default function RightSidebar() {
         <div className="right-sidebar__content">
           <Section title="Engine Status">
             <div className="engine-status-list">
-              <EngineStatusPanel engine="osrm" />
-              <EngineStatusPanel engine="valhalla" />
+              <EngineStatusPanel slot="a" />
+              <EngineStatusPanel slot="b" />
             </div>
           </Section>
-          <Section title="OSRM Routes">
-            <RouteVisibilityList engine="osrm" />
+          <Section title="Engine A Routes">
+            <RouteVisibilityList slot="a" />
           </Section>
-          <Section title="Valhalla Routes">
-            <RouteVisibilityList engine="valhalla" />
+          <Section title="Engine B Routes">
+            <RouteVisibilityList slot="b" />
           </Section>
           <Section title="Visibility Controls">
             <BulkVisibilityControls />

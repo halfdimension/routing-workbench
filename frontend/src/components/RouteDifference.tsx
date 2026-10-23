@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { formatDistanceKm } from "../format";
-import { useStore } from "../store";
+import { comparisonSlotForRoute, useStore } from "../store";
 import type { RouteDifferenceAnchor } from "../analysis/routeDifference";
 import "./RouteDifference.css";
 
@@ -73,11 +73,11 @@ export default function RouteDifference() {
   const fitDifference = useStore((state) => state.fitRouteDifference);
 
   const osrmRoutes = useMemo(
-    () => routes.filter((route) => route.engine === "osrm"),
+    () => routes.filter((route) => comparisonSlotForRoute(route) === "a"),
     [routes],
   );
   const valhallaRoutes = useMemo(
-    () => routes.filter((route) => route.engine === "valhalla"),
+    () => routes.filter((route) => comparisonSlotForRoute(route) === "b"),
     [routes],
   );
   const osrmRoute = osrmRoutes.find((route) => route.id === osrmRouteId);
@@ -99,7 +99,7 @@ export default function RouteDifference() {
     <section className="route-difference" aria-label="Route Difference analyzer">
       <div className="route-difference__controls">
         <label>
-          <span>OSRM route</span>
+          <span>Engine A route</span>
           <select
             aria-label="OSRM route"
             value={osrmRouteId ?? ""}
@@ -115,7 +115,7 @@ export default function RouteDifference() {
           </select>
         </label>
         <label>
-          <span>Valhalla route</span>
+          <span>Engine B route</span>
           <select
             aria-label="Valhalla route"
             value={valhallaRouteId ?? ""}
@@ -153,7 +153,8 @@ export default function RouteDifference() {
 
       {!available ? (
         <p className="route-difference__unavailable" role="status">
-          Route Difference requires at least one OSRM route and one Valhalla route.
+          Route Difference requires at least one Engine A route and one Engine B route.
+          <span className="sr-only"> Legacy default: requires at least one OSRM route and one Valhalla route.</span>
         </p>
       ) : null}
       {status === "error" && error ? (
@@ -168,14 +169,16 @@ export default function RouteDifference() {
               <strong>{formatPercent(result.geometricSimilarityPercent)}</strong>
             </article>
             <article className="route-difference__metric">
-              <span>OSRM shared</span>
+              <span>Engine A shared</span>
+              <span className="sr-only">OSRM shared</span>
               <strong>
                 {formatDistanceKm(result.osrmSharedMeters)} · {formatPercent(result.osrmSharedPercent)}
               </strong>
               <small>{formatDistanceKm(result.osrmNonSharedMeters)} non-shared</small>
             </article>
             <article className="route-difference__metric">
-              <span>Valhalla shared</span>
+              <span>Engine B shared</span>
+              <span className="sr-only">Valhalla shared</span>
               <strong>
                 {formatDistanceKm(result.valhallaSharedMeters)} · {formatPercent(result.valhallaSharedPercent)}
               </strong>
@@ -213,10 +216,10 @@ export default function RouteDifference() {
               </dl>
               <p>
                 This is geometry-based corridor comparison. A shared corridor does
-                not prove that OSRM and Valhalla traversed the same internal graph
+                not prove that Engine A and Engine B traversed the same internal graph
                 edge.
                 {" "}
-                The neutral shared overlay uses the OSRM shared-section geometry
+                The neutral shared overlay uses the Engine A shared-section geometry
                 as a representative of the detected corridor.
               </p>
             </div>
@@ -250,9 +253,9 @@ export default function RouteDifference() {
                       ? formatAnchor(divergence.rejoin)
                       : "Continues to destination"}
                   </dd>
-                  <dt>OSRM section</dt>
+                  <dt>Engine A section</dt>
                   <dd>{formatDistanceKm(divergence.osrmDistanceMeters)}</dd>
-                  <dt>Valhalla section</dt>
+                  <dt>Engine B section</dt>
                   <dd>{formatDistanceKm(divergence.valhallaDistanceMeters)}</dd>
                   <dt>Difference</dt>
                   <dd>{formatSignedDistance(divergence.lengthDeltaMeters)}</dd>

@@ -130,6 +130,25 @@ describe("EngineStatusPanel — idle and error states", () => {
     );
   });
 
+  it("renders a normalized successful no-route response as no route, not OK", () => {
+    const noRoute = errorEngine(
+      "osrm",
+      { kind: "no_route", message: "No route found" },
+      200,
+    );
+    noRoute.status = "ok";
+    seed({
+      osrm: noRoute,
+      valhalla: okEngine("valhalla", [route("valhalla", 0)]),
+    });
+    render(<EngineStatusPanel engine="osrm" />);
+
+    expect(screen.getByTestId("engine-error-osrm")).toHaveTextContent(
+      "OSRM returned no route for these coordinates.",
+    );
+    expect(screen.queryByTestId("engine-ok-osrm")).not.toBeInTheDocument();
+  });
+
   it("renders an invalid_request message", () => {
     seed({
       osrm: errorEngine("osrm", { kind: "invalid_request", message: "" }),

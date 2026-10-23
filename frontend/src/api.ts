@@ -15,6 +15,8 @@ import type {
   Engine,
   EngineHealth,
   EngineResult,
+  EngineInstance,
+  EngineDebugResult,
   ValhallaTraceResult,
   RoutingTarget,
 } from "./types";
@@ -90,22 +92,54 @@ export function valhallaTrace(
 }
 
 /**
- * Run the canonical Compare against both engines (Req 2).
- * Body contains only the start and destination coordinates; the backend builds
- * the canonical default requests itself.
+ * Run Compare against both selected local instances (Req 2). The frontend
+ * supplies only type/port/label; the backend owns localhost URL construction
+ * and all canonical engine request semantics. Prod remains backend-managed.
  */
 export function compare(
   start: Coordinate,
   dest: Coordinate,
   includeDebug = false,
   target: RoutingTarget = "local",
+  engineA?: EngineInstance,
+  engineB?: EngineInstance,
 ): Promise<CompareResponse> {
-  return postJson<CompareResponse>(
+  const body = includeDebug
+    ? { start, dest, target, includeDebug: true }
+    : { start, dest, target };
+  const dynamicBody = target === "local" && engineA && engineB
+    ? {
+        ...body,
+        engineA: { type: engineA.type, port: engineA.port, label: engineA.label },
+        engineB: { type: engineB.type, port: engineB.port, label: engineB.label },
+      }
+    : body;
+  return postJson<CompareResponse | {
+    engineA: EngineResult;
+    engineB: EngineResult;
+    routingTarget?: RoutingTarget;
+    debug?: { engineA: EngineDebugResult; engineB: EngineDebugResult } | null;
+  }>(
     "/api/compare",
-    includeDebug
-      ? { start, dest, target, includeDebug: true }
-      : { start, dest, target },
-  );
+    dynamicBody,
+  ).then((response) => {
+    if ("osrm" in response) return response;
+    return {
+      ...response,
+      // Compatibility aliases keep the established dashboard internals and
+      // raw/analysis tabs working while slot identity drives new comparison UI.
+      osrm: response.engineA,
+      valhalla: response.engineB,
+      debug: response.debug
+        ? {
+            osrm: response.debug.engineA,
+            valhalla: response.debug.engineB,
+            engineA: response.debug.engineA,
+            engineB: response.debug.engineB,
+          }
+        : null,
+    };
+  });
 }
 
 /** Send an exact OSRM URL verbatim through the backend (Req 9.4–9.5). */

@@ -27,6 +27,7 @@ import type {
   Engine,
   EngineHealth,
   EngineResult,
+  EngineInstance,
   NormalizedRoute,
   RouteQuality,
   TraceMatchedPoint,
@@ -34,6 +35,13 @@ import type {
   ValhallaTraceResult,
   RoutingTarget,
 } from "./types";
+import {
+  loadEngineInstances,
+  loadEngineSelection,
+  newEngineInstanceId,
+  saveEngineInstances,
+  saveEngineSelection,
+} from "./engineInstances";
 import type { MapCameraState } from "./map/camera";
 import type { RouteMetricId } from "./analysis/routeProfile";
 import type {
@@ -106,6 +114,10 @@ const IDLE_CURL_IMPORT: CurlImportState = {
 };
 
 export interface AppState {
+  engineInstances: EngineInstance[];
+  engineAId: string;
+  engineBId: string;
+  lastComparedInstances: { a: EngineInstance; b: EngineInstance } | null;
   // Coordinates (Req 1)
   start: Coordinate | null;
   dest: Coordinate | null;
@@ -290,6 +302,12 @@ export interface AppState {
   setOsrmUrlDraft: (url: string) => void;
   setValhallaUrlDraft: (url: string) => void;
   setValhallaBodyDraft: (body: string) => void;
+  addEngineInstance: () => void;
+  updateEngineInstance: (id: string, patch: Partial<Pick<EngineInstance, "type" | "port" | "label">>) => void;
+  removeEngineInstance: (id: string) => void;
+  setEngineAId: (id: string) => void;
+  setEngineBId: (id: string) => void;
+  swapEngines: () => void;
 
   runCompare: () => Promise<void>;
   setEdgeDebugEnabled: (enabled: boolean) => void;
@@ -461,10 +479,49 @@ export interface AppState {
  * routes first (in `normalizedRoutes` order), then all Valhalla routes.
  */
 export function flattenRoutes(results: CompareResponse): NormalizedRoute[] {
+  const a = results.engineA ?? results.osrm;
+  const b = results.engineB ?? results.valhalla;
   return [
-    ...results.osrm.normalizedRoutes,
-    ...results.valhalla.normalizedRoutes,
+    ...a.normalizedRoutes,
+    ...b.normalizedRoutes,
   ];
+}
+
+function attachComparisonRoles(
+  results: CompareResponse,
+  engineA: EngineInstance,
+  engineB: EngineInstance,
+): CompareResponse {
+  const enrich = (
+    result: EngineResult,
+    slot: "a" | "b",
+    instance: EngineInstance,
+  ): EngineResult => {
+    if (result.slot === slot && result.instance?.port === instance.port) return result;
+    const spec = { type: instance.type, port: instance.port, label: instance.label };
+    return {
+      ...result,
+      slot,
+      instance: spec,
+      warnings: result.warnings.map((warning) => ({ ...warning, slot })),
+      normalizedRoutes: result.normalizedRoutes.map((route) => ({
+        ...route,
+        slot,
+        instance: spec,
+        label: `Engine ${slot.toUpperCase()} · ${instance.label} · ${route.isPrimary ? "Primary" : `Alt ${route.index}`}`,
+      })),
+    };
+  };
+  const a = enrich(results.engineA ?? results.osrm, "a", engineA);
+  const b = enrich(results.engineB ?? results.valhalla, "b", engineB);
+  // The API adapter already supplies role aliases for a dynamic response.
+  // Preserve a legacy debug object byte-for-byte so existing consumers that
+  // compare or persist it do not observe an unrelated shape change.
+  return { ...results, engineA: a, engineB: b, osrm: a, valhalla: b };
+}
+
+export function comparisonSlotForRoute(route: NormalizedRoute): "a" | "b" {
+  return route.slot ?? (route.engine === "osrm" ? "a" : "b");
 }
 
 /** Return the original preserved OSRM polyline6 for a normalized route. */
@@ -647,7 +704,14 @@ function buildVisibility(
   return next;
 }
 
+const initialEngineInstances = loadEngineInstances();
+const initialEngineSelection = loadEngineSelection(initialEngineInstances);
+
 export const useStore = create<AppState>((set, get) => ({
+  engineInstances: initialEngineInstances,
+  engineAId: initialEngineSelection.a,
+  engineBId: initialEngineSelection.b,
+  lastComparedInstances: null,
   start: null,
   dest: null,
   mapClickTarget: null,
@@ -771,9 +835,52 @@ export const useStore = create<AppState>((set, get) => ({
   setOsrmUrlDraft: (url) => set({ osrmUrlDraft: url }),
   setValhallaUrlDraft: (url) => set({ valhallaUrlDraft: url }),
   setValhallaBodyDraft: (body) => set({ valhallaBodyDraft: body }),
+  addEngineInstance: () => {
+    const instances = [
+      ...get().engineInstances,
+      { id: newEngineInstanceId(), type: "osrm" as const, port: 5000, label: "New engine" },
+    ];
+    set({ engineInstances: instances });
+    saveEngineInstances(instances);
+  },
+  updateEngineInstance: (id, patch) => {
+    const instances = get().engineInstances.map((item) =>
+      item.id === id ? { ...item, ...patch } : item,
+    );
+    set({ engineInstances: instances });
+    saveEngineInstances(instances);
+  },
+  removeEngineInstance: (id) => {
+    const state = get();
+    if (state.engineInstances.length <= 1) return;
+    const instances = state.engineInstances.filter((item) => item.id !== id);
+    const fallback = instances[0].id;
+    const selection = {
+      a: state.engineAId === id ? fallback : state.engineAId,
+      b: state.engineBId === id ? fallback : state.engineBId,
+    };
+    set({ engineInstances: instances, engineAId: selection.a, engineBId: selection.b });
+    saveEngineInstances(instances);
+    saveEngineSelection(selection);
+  },
+  setEngineAId: (engineAId) => {
+    set({ engineAId });
+    saveEngineSelection({ a: engineAId, b: get().engineBId });
+  },
+  setEngineBId: (engineBId) => {
+    set({ engineBId });
+    saveEngineSelection({ a: get().engineAId, b: engineBId });
+  },
+  swapEngines: () => {
+    const state = get();
+    set({ engineAId: state.engineBId, engineBId: state.engineAId });
+    saveEngineSelection({ a: state.engineBId, b: state.engineAId });
+  },
 
   runCompare: async () => {
-    const { start, dest, edgeDebugEnabled, routingTarget } = get();
+    const { start, dest, edgeDebugEnabled, routingTarget, engineInstances, engineAId, engineBId } = get();
+    const engineA = engineInstances.find((item) => item.id === engineAId);
+    const engineB = engineInstances.find((item) => item.id === engineBId);
     const includeDebug = edgeDebugEnabled && routingTarget === "local";
     // A result-bound segment id must never survive into a new comparison.
     set({
@@ -786,10 +893,12 @@ export const useStore = create<AppState>((set, get) => ({
       routeAnalysisExecutedSearch: null,
       routeAnalysisFocusedSegmentId: null,
     });
-    if (!start || !dest) {
+    if (!start || !dest || !engineA || !engineB) {
       set({
         compareStatus: "error",
-        lastError: "Both start and destination coordinates are required.",
+        lastError: !start || !dest
+          ? "Both start and destination coordinates are required."
+          : "Select valid Engine A and Engine B instances.",
       });
       return;
     }
@@ -799,12 +908,16 @@ export const useStore = create<AppState>((set, get) => ({
       latestResponseSource: { osrm: "compare", valhalla: "compare" },
     });
     try {
-      const results = await api.compare(
+      const response = await api.compare(
         start,
         dest,
         includeDebug,
         routingTarget,
+        ...(routingTarget === "local"
+          ? [engineA, engineB] as const
+          : []),
       );
+      const results = attachComparisonRoles(response, engineA, engineB);
       const routes = flattenRoutes(results);
       // Initialize visibility to all-visible for the returned routes only.
       const visibility = buildVisibility(routes, () => true);
@@ -815,12 +928,13 @@ export const useStore = create<AppState>((set, get) => ({
         prevSelected && routes.some((r) => r.id === prevSelected)
           ? prevSelected
           : null;
-      const osrmRoutes = results.osrm.normalizedRoutes;
-      const valhallaRoutes = results.valhalla.normalizedRoutes;
+      const slotARoutes = (results.engineA ?? results.osrm).normalizedRoutes;
+      const slotBRoutes = (results.engineB ?? results.valhalla).normalizedRoutes;
       const differenceOsrmRoute =
-        osrmRoutes.find((route) => route.isPrimary) ?? osrmRoutes[0];
+        slotARoutes.find((route) => route.isPrimary) ?? slotARoutes[0];
       const differenceValhallaRoute =
-        valhallaRoutes.find((route) => route.isPrimary) ?? valhallaRoutes[0];
+        slotBRoutes.find((route) => route.isPrimary) ?? slotBRoutes[0];
+      const osrmRoutes = [...slotARoutes, ...slotBRoutes].filter((route) => route.engine === "osrm");
       const selectedTraceRoute =
         osrmRoutes.find((route) => route.id === previous.traceSourceRouteId) ??
         osrmRoutes[0];
@@ -849,6 +963,7 @@ export const useStore = create<AppState>((set, get) => ({
         traceAnalysisFocusedSegmentId: null,
         compareStatus: "done",
         comparisonResultRevision: previous.comparisonResultRevision + 1,
+        lastComparedInstances: { a: { ...engineA }, b: { ...engineB } },
         lastError: null,
         traceSourceRouteId: nextTraceSourceId,
         ...(keepTrace
@@ -965,8 +1080,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   runValhallaTrace: async () => {
     const state = get();
-    const route = state.results?.osrm.normalizedRoutes.find(
-      (candidate) => candidate.id === state.traceSourceRouteId,
+    const route = (state.results ? flattenRoutes(state.results) : state.routes).find(
+      (candidate) => candidate.engine === "osrm" && candidate.id === state.traceSourceRouteId,
     );
     const encodedPolyline = encodedPolylineForRoute(route);
     if (!route || !encodedPolyline) {
@@ -1314,12 +1429,12 @@ export const useStore = create<AppState>((set, get) => ({
     const state = get();
     const osrmRoute = state.routes.find(
       (route) =>
-        route.engine === "osrm" &&
+        comparisonSlotForRoute(route) === "a" &&
         route.id === state.routeDifferenceOsrmRouteId,
     );
     const valhallaRoute = state.routes.find(
       (route) =>
-        route.engine === "valhalla" &&
+        comparisonSlotForRoute(route) === "b" &&
         route.id === state.routeDifferenceValhallaRouteId,
     );
     if (!osrmRoute || !valhallaRoute) {
@@ -1328,7 +1443,7 @@ export const useStore = create<AppState>((set, get) => ({
         routeDifferenceResult: null,
         routeDifferenceResultRevision: null,
         routeDifferenceError:
-          "Both an OSRM route and a Valhalla route are required.",
+          "Both an Engine A route and an Engine B route are required.",
         routeDifferenceFocusedIndex: null,
       });
       return;
@@ -1531,12 +1646,12 @@ export const useStore = create<AppState>((set, get) => ({
 
   osrmOnly: () =>
     set((state) => ({
-      visibility: buildVisibility(state.routes, (r) => r.engine === "osrm"),
+      visibility: buildVisibility(state.routes, (r) => comparisonSlotForRoute(r) === "a"),
     })),
 
   valhallaOnly: () =>
     set((state) => ({
-      visibility: buildVisibility(state.routes, (r) => r.engine === "valhalla"),
+      visibility: buildVisibility(state.routes, (r) => comparisonSlotForRoute(r) === "b"),
     })),
 
   primaryOnly: () =>

@@ -44,7 +44,11 @@ export default function SelectedRouteInfo() {
   const kind = route.isPrimary ? "Primary" : "Alternate";
   // Per-engine round-trip time measured by the backend (Req 7.1). Null when no
   // compare result is present for this engine.
-  const engineResult = results ? results[route.engine] : null;
+  const engineResult = results
+    ? route.slot === "a" ? (results.engineA ?? results.osrm)
+      : route.slot === "b" ? (results.engineB ?? results.valhalla)
+        : results[route.engine]
+    : null;
   const execMs = engineResult ? engineResult.durationMs : null;
 
   return (
@@ -53,7 +57,7 @@ export default function SelectedRouteInfo() {
         <span
           className={route.isPrimary ? "selected-route__swatch selected-route__swatch--primary" : "selected-route__swatch selected-route__swatch--alternative"}
           aria-hidden="true"
-          style={{ color: routeColor(route.engine, route.index) }}
+          style={{ color: routeColor(route.engine, route.index, route.slot) }}
         />
         <span className="selected-route__title">{route.label}</span>
         <span className="selected-route__badge">{kind}</span>
@@ -61,7 +65,7 @@ export default function SelectedRouteInfo() {
 
       <dl className="selected-route__fields">
         <dt>Engine</dt>
-        <dd>{engineName}</dd>
+        <dd>{route.slot ? `Engine ${route.slot.toUpperCase()} · ` : ""}{route.instance?.label ?? engineName}{route.instance ? ` · :${route.instance.port}` : ""}</dd>
         <dt>Distance</dt>
         <dd>{formatDistanceKm(route.distanceMeters)}</dd>
         <dt>Duration</dt>

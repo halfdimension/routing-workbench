@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # The two routing engines the dashboard compares (design Data Models).
 Engine = Literal["osrm", "valhalla"]
 RoutingTarget = Literal["local", "prod"]
+ComparisonSlot = Literal["a", "b"]
 
 
 class _CamelModel(BaseModel):
@@ -42,6 +43,24 @@ class Coordinate(_CamelModel):
     lon: float
 
 
+class EngineInstanceSpec(_CamelModel):
+    """A caller-selected local engine instance.
+
+    Only an engine kind and TCP port are accepted.  The backend always supplies
+    the localhost host and engine-specific path, so this cannot be used as an
+    arbitrary URL/hostname proxy.
+    """
+
+    # Reject, rather than silently ignore, caller-supplied URL components. This
+    # keeps the instance selector a localhost port selector rather than an SSRF
+    # capable generic proxy configuration.
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    type: Engine
+    port: int = Field(ge=1, le=65535)
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+
+
 class NormalizedRoute(_CamelModel):
     """Engine-agnostic route model produced by the backend (Req 12.1).
 
@@ -61,6 +80,8 @@ class NormalizedRoute(_CamelModel):
     duration_seconds: float | None = Field(default=None, alias="durationSeconds")
     cost: float | None = None
     raw: Any = None
+    slot: ComparisonSlot | None = None
+    instance: EngineInstanceSpec | None = None
 
 
 class EngineError(_CamelModel):
@@ -89,6 +110,7 @@ class RouteWarning(_CamelModel):
     route_index: int = Field(alias="routeIndex")
     kind: str
     message: str
+    slot: ComparisonSlot | None = None
 
 
 class EngineResult(_CamelModel):
@@ -109,6 +131,8 @@ class EngineResult(_CamelModel):
     )
     warnings: list[RouteWarning] = Field(default_factory=list)
     error: EngineError | None = None
+    slot: ComparisonSlot | None = None
+    instance: EngineInstanceSpec | None = None
 
 
 class DebugError(_CamelModel):
@@ -132,6 +156,7 @@ class DebugSegment(_CamelModel):
     segment_index: int = Field(alias="segmentIndex")
     coordinates: list[tuple[float, float]]
     properties: dict[str, Any]
+    slot: ComparisonSlot | None = None
 
 
 class EngineDebugResult(_CamelModel):
@@ -141,6 +166,7 @@ class EngineDebugResult(_CamelModel):
     status: Literal["ok", "partial", "error"]
     segments: list[DebugSegment] = Field(default_factory=list)
     errors: list[DebugError] = Field(default_factory=list)
+    slot: ComparisonSlot | None = None
 
 
 class CompareDebug(_CamelModel):
@@ -150,6 +176,13 @@ class CompareDebug(_CamelModel):
     valhalla: EngineDebugResult
 
 
+class DynamicCompareDebug(_CamelModel):
+    """Debug results keyed by comparison role, independent of engine kind."""
+
+    engine_a: EngineDebugResult = Field(alias="engineA")
+    engine_b: EngineDebugResult = Field(alias="engineB")
+
+
 class CompareResponse(_CamelModel):
     """The paired per-engine result of a Compare fan-out (Req 2, 12)."""
 
@@ -157,6 +190,15 @@ class CompareResponse(_CamelModel):
     valhalla: EngineResult
     routing_target: RoutingTarget = Field(alias="routingTarget")
     debug: CompareDebug | None = None
+
+
+class DynamicCompareResponse(_CamelModel):
+    """Two independently selected local instances, keyed by UI slot."""
+
+    engine_a: EngineResult = Field(alias="engineA")
+    engine_b: EngineResult = Field(alias="engineB")
+    routing_target: RoutingTarget = Field(default="local", alias="routingTarget")
+    debug: DynamicCompareDebug | None = None
 
 
 class CompareRequest(_CamelModel):
@@ -172,6 +214,8 @@ class CompareRequest(_CamelModel):
     dest: Coordinate
     include_debug: bool = Field(default=False, alias="includeDebug")
     target: RoutingTarget = "local"
+    engine_a: EngineInstanceSpec | None = Field(default=None, alias="engineA")
+    engine_b: EngineInstanceSpec | None = Field(default=None, alias="engineB")
 
 
 class ValhallaTraceRequest(_CamelModel):

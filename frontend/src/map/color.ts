@@ -24,7 +24,7 @@
  * it has no side effects. That makes it directly unit-testable and safe to use
  * as the `colorFor` generator when building the combined route GeoJSON source.
  */
-import type { Engine } from "../types";
+import type { ComparisonSlot, Engine } from "../types";
 
 /** An engine's HSL hue band. `anchor` is the primary (index 0) hue. */
 export interface HueBand {
@@ -82,8 +82,10 @@ export const LIGHTNESS_LEVELS = [42, 52, 46, 56] as const;
  * @param index  Route index within the engine (0 = primary, uses anchor hue).
  * @returns An `hsl(h, s%, l%)` string.
  */
-export function routeColor(engine: Engine, index: number): string {
-  const band = HUE_BANDS[engine];
+export function routeColor(engine: Engine, index: number, slot?: ComparisonSlot | null): string {
+  // Comparison roles own the color families when available, so OSRM-vs-OSRM
+  // and Valhalla-vs-Valhalla remain visually separable.
+  const band = slot === "a" ? HUE_BANDS.osrm : slot === "b" ? HUE_BANDS.valhalla : HUE_BANDS[engine];
   // Normalize to a non-negative integer index; primary (0) → anchor hue.
   const i = Math.max(0, Math.floor(index));
   const hue = band.anchor + ((i * HUE_STEP) % band.span);

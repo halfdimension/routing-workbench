@@ -20,7 +20,7 @@
  */
 import { useStore } from "../store";
 import { routeColor } from "../map/color";
-import { findEnginePrimary } from "../compare";
+import { findRoutePrimary } from "../compare";
 import {
   formatDistanceKm,
   formatDuration,
@@ -63,7 +63,7 @@ export default function ComparisonTable() {
         </thead>
         <tbody>
           {routes.map((route) => {
-            const primary = findEnginePrimary(route.engine, routes);
+            const primary = findRoutePrimary(route, routes);
             const selected = route.id === selectedRouteId;
             return (
               <tr
@@ -84,13 +84,13 @@ export default function ComparisonTable() {
                   }
                 }}
               >
-                <td><span className={`comparison-table__engine comparison-table__engine--${route.engine}`}>{engineName(route.engine)}</span></td>
+                <td><span className={`comparison-table__engine comparison-table__engine--${route.engine}`}>Engine {route.slot?.toUpperCase() ?? "?"} · {engineName(route.engine)}{route.instance ? ` :${route.instance.port}` : ""}</span></td>
                 <td>
                   <span className="comparison-table__label">
                     <span
                       className={route.isPrimary ? "comparison-table__swatch comparison-table__swatch--primary" : "comparison-table__swatch comparison-table__swatch--alternative"}
                       aria-hidden="true"
-                      style={{ color: routeColor(route.engine, route.index) }}
+                      style={{ color: routeColor(route.engine, route.index, route.slot) }}
                     />
                     {route.label}
                   </span>

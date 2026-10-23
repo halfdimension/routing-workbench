@@ -21,6 +21,8 @@ through the backend proxy, which:
 
 - keeps Advanced raw/curl forwarding restricted to `localhost:5000` and
   `localhost:8002`,
+- accepts Compare-mode engine instance specs as only an engine type and a
+  validated local TCP port (never a hostname, URL, path, or scheme),
 - permits canonical Prod Compare calls only to the fixed Mappls production host,
 - forwards the request to the selected routing target,
 - times the round trip,
@@ -109,7 +111,8 @@ npx vite preview
 
 **THE DASHBOARD DOES NOT BUILD OR START THE ROUTING ENGINES.**
 
-OSRM and Valhalla must already be running separately on `localhost:5000` and
+OSRM and Valhalla must already be running separately. The initial defaults are
+OSRM on `localhost:5000`, OSRM new traffic on `localhost:5010`, and Valhalla on
 `localhost:8002`. The dashboard only issues HTTP requests to the
 already-running services. It never builds, starts, stops, restarts, or executes
 the engines. This constraint holds for every feature, including the Advanced
@@ -189,15 +192,24 @@ Local preserves the localhost OSRM/Valhalla requests. Prod uses backend-managed
 Mappls GET requests with redacted browser previews. Edge Debug and Trace
 Inspector remain Local-only.
 
+For Local comparisons, use **Engine Instances** in the left sidebar to choose
+Engine A and Engine B. Either slot can be any saved OSRM or Valhalla instance,
+including two instances of the same engine type. Use **Manage instances** to
+add, edit, save, or remove a friendly label, engine type, and port. The list and
+the A/B selection are stored in browser `localStorage`; no rebuild, restart, or
+`.env` edit is required. The swap button exchanges the two roles. Selecting the
+same instance in both slots is allowed.
+
 ### Route colors
 
-OSRM routes use a blue color family; Valhalla routes use a warm color family.
-Each engine's primary route is visually distinguished from its alternates.
+Engine A routes use a cool color family and Engine B routes use a warm color
+family, so same-engine comparisons remain distinguishable. Each instance's
+primary route is visually distinguished from its alternates.
 
 ### Visibility controls
 
-Per-route checkboxes are grouped by engine. Bulk actions: **Show All**,
-**Hide All**, **OSRM Only**, **Valhalla Only**, **Primary Only**,
+Per-route checkboxes are grouped by comparison role. Bulk actions: **Show All**,
+**Hide All**, **Engine A Only**, **Engine B Only**, **Primary Only**,
 **Alternatives Only**.
 
 ### Route selection
@@ -234,6 +246,52 @@ request is made.
 View the full raw engine response as pretty-printed, collapsible JSON with a
 **Copy JSON** control. Custom / non-standard fields in the engine response are
 preserved.
+
+## Dynamic Compare API
+
+`POST /api/compare` remains backward compatible. Omitting `engineA` and
+`engineB` returns the legacy `osrm`/`valhalla` response with the original
+`5000` versus `8002` defaults. Supplying either instance spec selects the
+role-keyed response; an omitted peer spec uses its original default.
+
+Example request:
+
+```json
+{
+  "start": { "lon": 77.2203734667, "lat": 28.5758348008 },
+  "dest": { "lon": 77.1711418469, "lat": 28.6258850168 },
+  "includeDebug": false,
+  "target": "local",
+  "engineA": { "type": "osrm", "port": 5000, "label": "OSRM original" },
+  "engineB": { "type": "osrm", "port": 5010, "label": "OSRM new traffic" }
+}
+```
+
+Dynamic response shape (route arrays/raw payloads abbreviated):
+
+```json
+{
+  "engineA": {
+    "engine": "osrm",
+    "slot": "a",
+    "instance": { "type": "osrm", "port": 5000, "label": "OSRM original" },
+    "status": "ok",
+    "httpStatus": 200,
+    "durationMs": 12.3,
+    "normalizedRoutes": [],
+    "raw": {},
+    "warnings": [],
+    "error": null
+  },
+  "engineB": {},
+  "routingTarget": "local"
+}
+```
+
+Ports are validated in the range `1..65535`, and the backend constructs only
+`http://localhost:{port}` engine URLs. For a backend exposed beyond trusted
+local development, set `DYNAMIC_ENGINE_PORT_ALLOWLIST` to a comma-separated
+port list such as `5000,5010,8002`; requests outside it receive HTTP 403.
 
 ### Curl import
 
@@ -273,6 +331,9 @@ alternates yields "No alternatives returned", which is **not** an error.
   *input* is stored: not raw engine responses, not decoded route geometry, not
   health/loading state. A saved test case is a reproducible input, not a
   response snapshot.
+
+- **`biking.engine-instances.v1`** and **`biking.engine-selection.v1`** — the
+  locally configured instances and current Engine A/B selection.
 
 - **`biking.assessments.v2`** — route-quality assessments namespaced by
   test-case id and keyed internally by a **deterministic geometry fingerprint**

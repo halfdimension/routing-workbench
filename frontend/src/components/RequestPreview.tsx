@@ -30,6 +30,9 @@ export default function RequestPreview() {
   const start = useStore((s) => s.start);
   const dest = useStore((s) => s.dest);
   const routingTarget = useStore((s) => s.routingTarget);
+  const instances = useStore((s) => s.engineInstances);
+  const aId = useStore((s) => s.engineAId);
+  const bId = useStore((s) => s.engineBId);
 
   if (!isValidCoord(start) || !isValidCoord(dest)) {
     return (
@@ -41,6 +44,23 @@ export default function RequestPreview() {
   }
 
   const isProd = routingTarget === "prod";
+  const selected = [instances.find((item) => item.id === aId), instances.find((item) => item.id === bId)];
+  if (!isProd) {
+    return (
+      <div className="request-preview">
+        {selected.map((instance, index) => instance ? (
+          <div className="request-preview__block" key={instance.id + index}>
+            <h4 className="request-preview__title">Engine {index === 0 ? "A" : "B"} · {instance.label} · {instance.type.toUpperCase()} :{instance.port}</h4>
+            <pre className="request-preview__pre"><code className="request-preview__code">
+              {instance.type === "osrm"
+                ? buildOsrmPreviewUrl(start, dest, `http://localhost:${instance.port}`)
+                : `POST http://localhost:${instance.port}/route\n${buildValhallaPreviewJson(start, dest)}`}
+            </code></pre>
+          </div>
+        ) : null)}
+      </div>
+    );
+  }
   const osrmUrl = isProd
     ? buildProdOsrmPreviewUrl(start, dest)
     : buildOsrmPreviewUrl(start, dest);

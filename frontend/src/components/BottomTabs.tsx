@@ -154,11 +154,11 @@ export default function BottomTabs({
         ) : active === "OSRM Raw Request" ? (
           <OsrmRawRequest />
         ) : active === "OSRM Response" ? (
-          <RawResponseInspector engine="osrm" />
+          <RawResponseInspector slot="a" />
         ) : active === "Valhalla Raw Request" ? (
           <ValhallaRawRequest />
         ) : active === "Valhalla Response" ? (
-          <RawResponseInspector engine="valhalla" />
+          <RawResponseInspector slot="b" />
         ) : (
           <Assessment />
         )}

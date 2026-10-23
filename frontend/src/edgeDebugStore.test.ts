@@ -56,6 +56,8 @@ describe("Edge Debug store", () => {
       { lat: 28.5, lon: 77.3 },
       false,
       "local",
+      expect.objectContaining({ type: "osrm", port: 5000 }),
+      expect.objectContaining({ type: "valhalla", port: 8002 }),
     );
     expect(useStore.getState().debugResults).toBeNull();
 
@@ -66,6 +68,8 @@ describe("Edge Debug store", () => {
       { lat: 28.5, lon: 77.3 },
       true,
       "local",
+      expect.objectContaining({ type: "osrm", port: 5000 }),
+      expect.objectContaining({ type: "valhalla", port: 8002 }),
     );
     expect(useStore.getState().debugResults).toEqual(response.debug);
   });

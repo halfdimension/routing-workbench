@@ -355,12 +355,20 @@ export default function EdgeDetailsPanel(props: EdgeDetailsPanelProps = {}) {
         hidden={collapsed}
       >
       {debug
-        ? (["osrm", "valhalla"] as const).map((engine) => {
-            const result = debug[engine];
+        ? (debug.engineA && debug.engineB
+            ? ([
+                ["Engine A", debug.engineA],
+                ["Engine B", debug.engineB],
+              ] as const)
+            : ([
+                ["OSRM", debug.osrm],
+                ["Valhalla", debug.valhalla],
+              ] as const)
+          ).map(([role, result]) => {
             if (result.status === "ok" && result.errors.length === 0) return null;
             return (
-              <div className="edge-details__error" role="status" key={engine}>
-                <strong>{engine.toUpperCase()} debug data {result.status}</strong>
+              <div className="edge-details__error" role="status" key={role}>
+                <strong>{role} · {result.engine.toUpperCase()} debug data {result.status}</strong>
                 {result.errors.map((error, index) => (
                   <span key={`${error.kind}:${index}`}>{error.message}</span>
                 ))}

@@ -46,6 +46,17 @@ export function findEnginePrimary(
   );
 }
 
+/** Find the primary in the same comparison slot (falling back to engine for legacy data). */
+export function findRoutePrimary(
+  route: NormalizedRoute,
+  routes: NormalizedRoute[],
+): NormalizedRoute | null {
+  const peers = route.slot
+    ? routes.filter((candidate) => candidate.slot === route.slot)
+    : routes.filter((candidate) => candidate.engine === route.engine);
+  return peers.find((candidate) => candidate.isPrimary) ?? peers.find((candidate) => candidate.index === 0) ?? null;
+}
+
 /**
  * Compute the raw fractional difference of `value` vs `primary`, or `null` when
  * not computable (missing values or a zero primary — avoids NaN/Infinity).
@@ -69,7 +80,7 @@ export function computeVsPrimary(
   route: NormalizedRoute,
   routes: NormalizedRoute[],
 ): VsPrimary {
-  const primary = findEnginePrimary(route.engine, routes);
+  const primary = findRoutePrimary(route, routes);
   if (!primary) {
     return { distancePct: null, durationPct: null };
   }

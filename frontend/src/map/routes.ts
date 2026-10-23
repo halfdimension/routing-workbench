@@ -52,7 +52,7 @@ export interface RoutesFeatureCollection {
  * routes stay distinguishable (Req 4.1–4.4).
  */
 export function defaultRouteColor(route: NormalizedRoute): string {
-  return routeColor(route.engine, route.index);
+  return routeColor(route.engine, route.index, route.slot);
 }
 
 /**
@@ -64,10 +64,11 @@ export function defaultRouteColor(route: NormalizedRoute): string {
 export function routeDisplayOffset(
   engine: NormalizedRoute["engine"],
   routeIndex: number,
+  slot?: NormalizedRoute["slot"],
 ): number {
   const index = Math.max(0, routeIndex);
   const magnitude = 3 + 9 * (1 - Math.exp(-index / 3));
-  return engine === "osrm" ? -magnitude : magnitude;
+  return slot === "a" || (!slot && engine === "osrm") ? -magnitude : magnitude;
 }
 
 /**
@@ -99,7 +100,7 @@ export function buildRoutesFeatureCollection(
         index: r.index,
         isPrimary: r.isPrimary,
         color: colorFor(r),
-        displayOffsetPx: routeDisplayOffset(r.engine, r.index),
+        displayOffsetPx: routeDisplayOffset(r.engine, r.index, r.slot),
       },
     })),
   };

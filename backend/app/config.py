@@ -55,11 +55,39 @@ MAPPLS_PROD_ACCESS_TOKEN = _resolve_mappls_prod_access_token()
 MAPPLS_PROD_OSRM_BASE_URL = f"https://{CANONICAL_PROD_HOST}/advancedmaps/v1"
 MAPPLS_PROD_VALHALLA_URL = f"https://{CANONICAL_PROD_HOST}/advancedmaps/v2/route"
 
+# Central local defaults. Dynamic Compare may override either port per request;
+# these remain the backwards-compatible dashboard/API defaults.
+DEFAULT_OSRM_PORT = 5000
+DEFAULT_VALHALLA_PORT = 8002
+
 # Base URL of the running OSRM 5.25 fork (profile "biking").
-OSRM_BASE_URL = "http://localhost:5000"
+OSRM_BASE_URL = f"http://localhost:{DEFAULT_OSRM_PORT}"
 
 # Base URL of the running Valhalla 3.3.0 fork (POST /route).
-VALHALLA_BASE_URL = "http://localhost:8002"
+VALHALLA_BASE_URL = f"http://localhost:{DEFAULT_VALHALLA_PORT}"
 
 # Shared per-engine request timeout in seconds.
 REQUEST_TIMEOUT_SECONDS = 30
+
+
+def _parse_dynamic_port_allowlist(value: str | None) -> frozenset[int] | None:
+    """Parse an optional deployment guard for caller-selected local ports.
+
+    Local development intentionally defaults to any valid TCP port. Operators
+    exposing the backend beyond a trusted workstation can set a comma-separated
+    allowlist without changing dashboard code.
+    """
+    if value is None or not value.strip():
+        return None
+    ports: set[int] = set()
+    for token in value.split(","):
+        port = int(token.strip())
+        if port < 1 or port > 65535:
+            raise ValueError("DYNAMIC_ENGINE_PORT_ALLOWLIST ports must be 1..65535")
+        ports.add(port)
+    return frozenset(ports)
+
+
+DYNAMIC_ENGINE_PORT_ALLOWLIST = _parse_dynamic_port_allowlist(
+    os.environ.get("DYNAMIC_ENGINE_PORT_ALLOWLIST")
+)

@@ -2176,3 +2176,42 @@ select:focus-visible,
   .panel-collapse:hover { transform: none; }
   .button-spinner { animation-duration: .8s !important; animation-iteration-count: infinite !important; }
 }
+.comparison-selector {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.comparison-selector label,
+.engine-instance-row {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.comparison-selector select,
+.engine-instance-row input,
+.engine-instance-row select {
+  min-width: 0;
+  width: 100%;
+}
+
+.comparison-selector__swap {
+  justify-self: center;
+}
+
+.engine-slot-status {
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border-left: 3px solid #64748b;
+  background: rgba(100, 116, 139, 0.12);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.engine-slot-status[data-state="ok"] { border-left-color: #22c55e; }
+.engine-slot-status[data-state="error"] { border-left-color: #ef4444; }
+
+.engine-manager__instances { margin-top: 0.65rem; }
+.engine-instance-row { padding: 0.65rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.25); }
+.engine-instance-row__actions { display: flex; gap: 0.4rem; }
+.engine-instance-row__error { color: #fca5a5; }
+.engine-manager__note { margin: 0.45rem 0 0; font-size: 0.74rem; color: #94a3b8; }

@@ -187,11 +187,16 @@ export default function EdgeDebugInspector(props: EdgeDebugInspectorProps = {}) 
       (segment): segment is DebugSegment =>
         segment !== undefined && (visibility[segment.routeId] ?? true),
     );
-  // A 6px hit box can contain adjacent edges from the same engine. Keep the
-  // entire set for click/pin, but show one representative per engine here.
-  const summarySegments = (["osrm", "valhalla"] as const)
-    .map((engine) => segments.find((segment) => segment.engine === engine))
-    .filter((segment): segment is DebugSegment => segment !== undefined);
+  // Keep the full hit set for click/pin, but show one representative per
+  // comparison slot (or per engine for legacy payloads). This preserves both
+  // cards for OSRM-vs-OSRM and Valhalla-vs-Valhalla.
+  const seenRoles = new Set<string>();
+  const summarySegments = segments.filter((segment) => {
+    const role = segment.slot ?? segment.engine;
+    if (seenRoles.has(role)) return false;
+    seenRoles.add(role);
+    return true;
+  });
 
   const handleCardMouseEnter = () => {
     pointerOverCardRef.current = true;

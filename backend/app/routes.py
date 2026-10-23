@@ -29,6 +29,8 @@ from app.engines import (
 from app.models import (
     CompareRequest,
     CompareResponse,
+    DynamicCompareResponse,
+    DynamicCompareDebug,
     CompareDebug,
     Coordinate,
     CurlImportRequest,
@@ -37,6 +39,7 @@ from app.models import (
     EngineError,
     EngineDebugResult,
     EngineResult,
+    EngineInstanceSpec,
     HealthResponse,
     RoutingTarget,
     OsrmRawRequest,
@@ -325,6 +328,7 @@ async def _run_osrm(
     dest: Coordinate,
     include_debug: bool = False,
     target: RoutingTarget = "local",
+    port: int | None = None,
 ) -> _CompareOutcome:
     """Call OSRM with the canonical request and normalize into an envelope.
 
@@ -364,8 +368,12 @@ async def _run_osrm(
         for route in envelope.normalized_routes:
             route.raw = redact_sensitive(route.raw, [token])
     else:
-        url = build_default_osrm_url(start, dest)
-        result = await call_engine("GET", url)
+        effective_port = port or config.DEFAULT_OSRM_PORT
+        base_url = f"http://localhost:{effective_port}"
+        url = build_default_osrm_url(start, dest, base_url=base_url)
+        result = await call_engine(
+            "GET", url, allowed_hosts={f"localhost:{effective_port}"}
+        )
         envelope = _handle_engine_call(
             "osrm",
             result,
@@ -399,6 +407,7 @@ async def _run_valhalla(
     dest: Coordinate,
     include_debug: bool = False,
     target: RoutingTarget = "local",
+    port: int | None = None,
 ) -> _CompareOutcome:
     """Call Valhalla with the canonical request and normalize into an envelope.
 
@@ -438,11 +447,13 @@ async def _run_valhalla(
             route.raw = redact_sensitive(route.raw, [token])
         return _CompareOutcome(result=envelope)
 
-    url = f"{config.VALHALLA_BASE_URL}/route"
+    effective_port = port or config.DEFAULT_VALHALLA_PORT
+    url = f"http://localhost:{effective_port}/route"
+    allowed_hosts = {f"localhost:{effective_port}"}
     if not include_debug:
         body = build_default_valhalla_body(start, dest)
         request_units = body.get("directions_options", {}).get("units")
-        result = await call_engine("POST", url, json=body)
+        result = await call_engine("POST", url, json=body, allowed_hosts=allowed_hosts)
         envelope = _handle_engine_call(
             "valhalla",
             result,
@@ -464,6 +475,7 @@ async def _run_valhalla(
             "Content-Type": "application/x-protobuf",
             "Accept": "application/x-protobuf",
         },
+        allowed_hosts=allowed_hosts,
     )
     if not result.ok:
         return _CompareOutcome(
@@ -557,12 +569,85 @@ def _exception_envelope(
     )
 
 
+def _instance_label(spec: EngineInstanceSpec) -> str:
+    return spec.label or f"{spec.type.upper()} :{spec.port}"
+
+
+def _tag_outcome(
+    outcome: _CompareOutcome,
+    slot: str,
+    spec: EngineInstanceSpec,
+) -> _CompareOutcome:
+    """Attach instance/slot identity and make all route/debug ids collision-free."""
+    result = outcome.result
+    result.slot = slot
+    result.instance = spec
+    for warning in result.warnings:
+        warning.slot = slot
+    for route in result.normalized_routes:
+        old_id = route.id
+        route.id = f"{slot}:{old_id}"
+        route.slot = slot
+        route.instance = spec
+        role = "Primary" if route.is_primary else f"Alt {route.index}"
+        route.label = f"Engine {slot.upper()} · {_instance_label(spec)} · {role}"
+
+    debug = outcome.debug
+    if debug is not None:
+        debug.slot = slot
+        for segment in debug.segments:
+            segment.id = f"{slot}:{segment.id}"
+            segment.route_id = f"{slot}:{segment.route_id}"
+            segment.slot = slot
+    return outcome
+
+
+async def _run_instance(
+    spec: EngineInstanceSpec,
+    slot: str,
+    start: Coordinate,
+    dest: Coordinate,
+    include_debug: bool,
+) -> _CompareOutcome:
+    """Reusable adapter dispatcher for one validated localhost instance."""
+    if spec.type == "osrm":
+        outcome = await _run_osrm(
+            start, dest, include_debug=include_debug, target="local", port=spec.port
+        )
+    else:
+        outcome = await _run_valhalla(
+            start, dest, include_debug=include_debug, target="local", port=spec.port
+        )
+    raw = outcome.result.raw
+    malformed = (
+        spec.type == "osrm"
+        and isinstance(raw, dict)
+        and "code" not in raw
+    ) or (
+        spec.type == "valhalla"
+        and isinstance(raw, dict)
+        and not any(key in raw for key in ("trip", "error", "error_code"))
+    )
+    if malformed and outcome.result.status == "ok":
+        outcome.result.status = "error"
+        outcome.result.normalized_routes = []
+        outcome.result.error = EngineError(
+            kind="invalid_response",
+            message=(
+                f"Port {spec.port} did not return a valid {spec.type.upper()} route response. "
+                "Check the selected engine type."
+            ),
+            detail=None,
+        )
+    return _tag_outcome(outcome, slot, spec)
+
+
 @router.post(
     "/compare",
-    response_model=CompareResponse,
+    response_model=CompareResponse | DynamicCompareResponse,
     response_model_exclude_unset=True,
 )
-async def compare(request: CompareRequest) -> CompareResponse:
+async def compare(request: CompareRequest) -> CompareResponse | DynamicCompareResponse:
     """Fan out to both engines concurrently and return per-engine envelopes.
 
     Normal mode only: the body carries start/dest, an optional routing target,
@@ -576,6 +661,81 @@ async def compare(request: CompareRequest) -> CompareResponse:
     engine's independent error envelope — so one engine failing NEVER aborts or
     alters the other (Req 2.4, 2.5, 2.7, 17.13).
     """
+    dynamic = request.engine_a is not None or request.engine_b is not None
+    if dynamic:
+        if request.target != "local":
+            raise HTTPException(
+                status_code=422,
+                detail="Custom engine instances are supported only for the local target.",
+            )
+        spec_a = request.engine_a or EngineInstanceSpec(
+            type="osrm", port=config.DEFAULT_OSRM_PORT, label="OSRM original"
+        )
+        spec_b = request.engine_b or EngineInstanceSpec(
+            type="valhalla", port=config.DEFAULT_VALHALLA_PORT, label="Valhalla current"
+        )
+        if config.DYNAMIC_ENGINE_PORT_ALLOWLIST is not None:
+            disallowed = [
+                spec.port
+                for spec in (spec_a, spec_b)
+                if spec.port not in config.DYNAMIC_ENGINE_PORT_ALLOWLIST
+            ]
+            if disallowed:
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "One or more engine ports are not authorized by the backend "
+                        "DYNAMIC_ENGINE_PORT_ALLOWLIST."
+                    ),
+                )
+        outcomes = await asyncio.gather(
+            _run_instance(spec_a, "a", request.start, request.dest, request.include_debug),
+            _run_instance(spec_b, "b", request.start, request.dest, request.include_debug),
+            return_exceptions=True,
+        )
+        resolved: list[_CompareOutcome] = []
+        for outcome, spec, slot in zip(
+            outcomes, (spec_a, spec_b), ("a", "b"), strict=True
+        ):
+            if isinstance(outcome, _CompareOutcome):
+                resolved.append(outcome)
+            else:
+                fallback = _CompareOutcome(
+                    result=_exception_envelope(spec.type, outcome),
+                    debug=(
+                        _debug_failure(
+                            spec.type,
+                            f"Unexpected Engine {slot.upper()} debug processing failure.",
+                            str(outcome),
+                        )
+                        if request.include_debug
+                        else None
+                    ),
+                )
+                resolved.append(_tag_outcome(fallback, slot, spec))
+        engine_a, engine_b = resolved
+        debug_a = engine_a.debug or _debug_failure(
+            spec_a.type, "Engine A debug data is unavailable."
+        )
+        debug_b = engine_b.debug or _debug_failure(
+            spec_b.type, "Engine B debug data is unavailable."
+        )
+        debug_a.slot = "a"
+        debug_b.slot = "b"
+        return DynamicCompareResponse(
+            engine_a=engine_a.result,
+            engine_b=engine_b.result,
+            routing_target="local",
+            debug=(
+                DynamicCompareDebug(
+                    engine_a=debug_a,
+                    engine_b=debug_b,
+                )
+                if request.include_debug
+                else None
+            ),
+        )
+
     include_debug = request.include_debug and request.target == "local"
     osrm_outcome, valhalla_outcome = await asyncio.gather(
         _run_osrm(request.start, request.dest, include_debug, request.target),

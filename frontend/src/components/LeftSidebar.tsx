@@ -16,6 +16,7 @@ import CoordinateInputs from "./CoordinateInputs";
 import RequestPreview from "./RequestPreview";
 import CurlImport from "./CurlImport";
 import TestCases from "./TestCases";
+import EngineInstanceManager from "./EngineInstanceManager";
 
 function MapSelection() {
   const mapClickTarget = useStore((s) => s.mapClickTarget);
@@ -129,6 +130,9 @@ export default function LeftSidebar() {
           </Section>
           <Section title="Request Options">
             <ModeToggle />
+          </Section>
+          <Section title="Engine Instances">
+            <EngineInstanceManager />
           </Section>
           <Section title="Request Preview">
             <RequestPreview />

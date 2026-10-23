@@ -97,6 +97,9 @@ function resetStore() {
     osrmUrlDraft: "",
     valhallaUrlDraft: "",
     valhallaBodyDraft: "",
+    engineAId: "osrm-original",
+    engineBId: "valhalla-current",
+    lastComparedInstances: null,
     results: null,
     routes: [],
     osrmRawState: { status: "idle", result: null, error: null },
@@ -166,6 +169,8 @@ describe("store", () => {
         { lat: 12.95, lon: 77.65 },
         false,
         "local",
+        expect.objectContaining({ type: "osrm", port: 5000 }),
+        expect.objectContaining({ type: "valhalla", port: 8002 }),
       );
       expect(state.routes.map((r) => r.id)).toEqual(ALL_IDS);
       expect(state.compareStatus).toBe("done");
@@ -185,6 +190,25 @@ describe("store", () => {
       expect(api.compare).not.toHaveBeenCalled();
       expect(useStore.getState().compareStatus).toBe("error");
       expect(useStore.getState().lastError).toMatch(/required/i);
+    });
+
+    it("passes non-default instance selections to every local compare", async () => {
+      vi.mocked(api.compare).mockResolvedValue(makeCompareResponse());
+      const state = useStore.getState();
+      state.setStart({ lat: 28.5758348008, lon: 77.2203734667 });
+      state.setDest({ lat: 28.6258850168, lon: 77.1711418469 });
+      state.setEngineBId("osrm-new-traffic");
+
+      await useStore.getState().runCompare();
+
+      expect(api.compare).toHaveBeenCalledWith(
+        { lat: 28.5758348008, lon: 77.2203734667 },
+        { lat: 28.6258850168, lon: 77.1711418469 },
+        false,
+        "local",
+        expect.objectContaining({ type: "osrm", port: 5000 }),
+        expect.objectContaining({ type: "osrm", port: 5010 }),
+      );
     });
 
     it("keeps selection if still present, clears otherwise", async () => {

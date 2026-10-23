@@ -19,13 +19,16 @@
  */
 import { useStore } from "../store";
 import { routeColor } from "../map/color";
-import type { Engine } from "../types";
+import type { ComparisonSlot, Engine } from "../types";
+import { comparisonSlotForRoute } from "../store";
 
 interface RouteVisibilityListProps {
-  engine: Engine;
+  slot?: ComparisonSlot;
+  engine?: Engine;
 }
 
 export default function RouteVisibilityList({
+  slot,
   engine,
 }: RouteVisibilityListProps) {
   // Cheap selectors: pull the raw slices and filter in the component body so we
@@ -36,7 +39,9 @@ export default function RouteVisibilityList({
   const selectedRouteId = useStore((s) => s.selectedRouteId);
   const selectRoute = useStore((s) => s.selectRoute);
 
-  const engineRoutes = routes.filter((r) => r.engine === engine);
+  const engineRoutes = routes.filter((r) =>
+    slot ? comparisonSlotForRoute(r) === slot : r.engine === engine,
+  );
 
   if (engineRoutes.length === 0) {
     return (
@@ -86,7 +91,7 @@ export default function RouteVisibilityList({
                     : "route-row__line-sample route-row__line-sample--alternative"
                 }
                 aria-hidden="true"
-                style={{ color: routeColor(route.engine, route.index) }}
+                style={{ color: routeColor(route.engine, route.index, route.slot) }}
               />
               <span className="route-row__label">{route.label}</span>
             </button>

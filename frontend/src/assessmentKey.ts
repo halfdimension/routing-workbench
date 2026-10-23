@@ -14,8 +14,8 @@
  * route's own geometry so a rating follows the geometry, not the index:
  *   - Same geometry across reruns  → SAME key (rating restored, any index).
  *   - Materially different geometry → DIFFERENT key (reads as Unrated).
- *   - OSRM vs Valhalla are always distinct (engine prefix), even if two
- *     engines happen to produce identical geometry.
+ *   - Engine types are distinct, and non-default same-engine instances are
+ *     additionally namespaced by port.
  *
  * The route's index-based `id` is intentionally left untouched and continues to
  * drive ALL current-run UI state (map selection, visibility, table rows,
@@ -26,7 +26,7 @@
  * decimal places (matching polyline6 precision) before hashing. Rounding makes
  * the key robust to sub-metre floating noise while still changing when the
  * geometry changes materially. The full coordinate array is NEVER stored — only
- * the compact `${engine}:${fingerprint}` string is persisted.
+ * a compact engine/instance + fingerprint string is persisted.
  *
  * The hash is ORDER-SENSITIVE on purpose: a route and its reverse are different
  * routes, so coordinates are hashed in sequence and never sorted.
@@ -104,13 +104,18 @@ export function geometryFingerprint(
 
 /**
  * Return the deterministic PERSISTENCE key for a route's assessment:
- * `${engine}:${geometryFingerprint}` (e.g. "valhalla:1a2b3c4d").
+ * `${engine}[:port]:${geometryFingerprint}` (e.g. "valhalla:1a2b3c4d").
  *
  * Distinct from `route.id` (which is index-based and drives current-run UI).
  * Two routes with the same geometry from the same engine share a key across
- * reruns regardless of their alternate index; different engines never share a
- * key because the engine name prefixes the fingerprint. Never throws.
+ * reruns regardless of their alternate index. Original default instances keep
+ * their legacy key shape; added non-default instances include the port so two
+ * same-engine datasets do not overwrite one another. Never throws.
  */
 export function routeAssessmentKey(route: NormalizedRoute): string {
-  return `${route.engine}:${geometryFingerprint(route.coordinates)}`;
+  const defaultPort = route.engine === "osrm" ? 5000 : 8002;
+  const instance = route.instance && route.instance.port !== defaultPort
+    ? `:${route.instance.port}`
+    : "";
+  return `${route.engine}${instance}:${geometryFingerprint(route.coordinates)}`;
 }

@@ -31,20 +31,29 @@
 import { useStore } from "../store";
 import { engineDisplayName, engineResultMessage } from "../engineError";
 import { formatDurationMs } from "../format";
-import type { Engine } from "../types";
+import type { ComparisonSlot, Engine } from "../types";
 
-export default function EngineStatusPanel({ engine }: { engine: Engine }) {
+export default function EngineStatusPanel({ engine, slot }: { engine?: Engine; slot?: ComparisonSlot }) {
   // Subscribe ONLY to this engine's envelope. Reading `results` (the whole
   // object) is fine — we index a single engine and never branch on the sibling.
   const results = useStore((s) => s.results);
-  const name = engineDisplayName(engine);
+  const envelope = results == null
+    ? null
+    : slot === "a" ? (results.engineA ?? results.osrm)
+      : slot === "b" ? (results.engineB ?? results.valhalla)
+        : results[engine ?? "osrm"];
+  const resolvedEngine = envelope?.engine ?? engine ?? "osrm";
+  const name = slot
+    ? `Engine ${slot.toUpperCase()} · ${envelope?.instance?.label ?? engineDisplayName(resolvedEngine)}${envelope?.instance ? ` · :${envelope.instance.port}` : ""}`
+    : engineDisplayName(resolvedEngine);
+  const key = slot ?? resolvedEngine;
 
   // No compare run yet: minimal muted idle hint.
   if (results == null) {
     return (
       <div
         className="engine-status engine-status--idle"
-        data-testid={`engine-status-${engine}`}
+        data-testid={`engine-status-${key}`}
       >
         <span className="engine-status__name">{name}</span>
         <span className="engine-status__idle">No results yet.</span>
@@ -52,19 +61,21 @@ export default function EngineStatusPanel({ engine }: { engine: Engine }) {
     );
   }
 
-  const envelope = results[engine];
+  if (envelope == null) return null;
   const warnings = envelope.warnings;
+  const hasTerminalError =
+    envelope.status === "error" || envelope.error?.kind === "no_route";
 
   return (
     <div
       className="engine-status"
-      data-testid={`engine-status-${engine}`}
+      data-testid={`engine-status-${key}`}
     >
-      {envelope.status === "error" ? (
+      {hasTerminalError ? (
         <div
           className="engine-status__error"
           role="alert"
-          data-testid={`engine-error-${engine}`}
+          data-testid={`engine-error-${key}`}
         >
           <span className="engine-status__error-label">{name} error</span>
           <span className="engine-status__error-message">
@@ -74,7 +85,7 @@ export default function EngineStatusPanel({ engine }: { engine: Engine }) {
       ) : (
         <div
           className="engine-status__ok"
-          data-testid={`engine-ok-${engine}`}
+          data-testid={`engine-ok-${key}`}
         >
           <span className="engine-status__ok-badge">{name} OK</span>
           <span className="engine-status__ok-detail">
@@ -88,7 +99,7 @@ export default function EngineStatusPanel({ engine }: { engine: Engine }) {
           {envelope.normalizedRoutes.length === 1 && (
             <span
               className="engine-status__note"
-              data-testid={`engine-no-alternates-${engine}`}
+              data-testid={`engine-no-alternates-${key}`}
             >
               No alternatives returned.
             </span>
@@ -101,13 +112,13 @@ export default function EngineStatusPanel({ engine }: { engine: Engine }) {
       {warnings.length > 0 && (
         <ul
           className="engine-status__warnings"
-          data-testid={`engine-warnings-${engine}`}
+          data-testid={`engine-warnings-${key}`}
         >
           {warnings.map((w, i) => (
             <li
               key={`${w.routeIndex}-${i}`}
               className="engine-warning"
-              data-testid={`engine-warning-${engine}-${w.routeIndex}`}
+              data-testid={`engine-warning-${key}-${w.routeIndex}`}
             >
               <span className="engine-warning__badge">Warning</span>
               <span className="engine-warning__route">

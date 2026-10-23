@@ -21,7 +21,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store";
-import type { Engine } from "../types";
+import type { ComparisonSlot, Engine } from "../types";
 import JsonViewer from "./JsonViewer";
 import {
   selectEngineResponse,
@@ -48,7 +48,7 @@ function sourceLabel(
   return null;
 }
 
-export default function RawResponseInspector({ engine }: { engine: Engine }) {
+export default function RawResponseInspector({ engine, slot }: { engine?: Engine; slot?: ComparisonSlot }) {
   const results = useStore((s) => s.results);
   const osrmRawState = useStore((s) => s.osrmRawState);
   const valhallaRawState = useStore((s) => s.valhallaRawState);
@@ -56,7 +56,17 @@ export default function RawResponseInspector({ engine }: { engine: Engine }) {
   const latestResponseSource = useStore((s) => s.latestResponseSource);
   const resultTarget = results?.routingTarget ?? "local";
 
-  const resp = selectEngineResponse(
+  const resolvedEngine = engine ?? (slot === "b" ? "valhalla" : "osrm");
+  const selected = slot === "a"
+    ? (results?.engineA ?? results?.osrm)
+    : slot === "b" ? (results?.engineB ?? results?.valhalla) : null;
+  const resp = slot
+    ? compareStatus === "loading"
+      ? { source: "compare" as const, status: "loading" as const, httpStatus: null, error: null, rawStateError: null, raw: undefined, warnings: [], result: null }
+      : selected
+        ? { source: "compare" as const, status: selected.status === "error" ? "error" as const : "done" as const, httpStatus: selected.httpStatus, error: selected.error, rawStateError: null, raw: selected.raw, warnings: selected.warnings, result: selected }
+        : { source: null, status: "idle" as const, httpStatus: null, error: null, rawStateError: null, raw: undefined, warnings: [], result: null }
+    : selectEngineResponse(
     {
       results,
       osrmRawState,
@@ -64,7 +74,7 @@ export default function RawResponseInspector({ engine }: { engine: Engine }) {
       compareStatus,
       latestResponseSource,
     },
-    engine,
+    resolvedEngine,
   );
 
   const [copied, setCopied] = useState(false);
@@ -76,7 +86,10 @@ export default function RawResponseInspector({ engine }: { engine: Engine }) {
     [],
   );
 
-  const engineName = ENGINE_NAME[engine];
+  const engineName = slot
+    ? `Engine ${slot.toUpperCase()} · ${selected?.instance?.label ?? ENGINE_NAME[selected?.engine ?? resolvedEngine]}${selected?.instance ? ` · :${selected.instance.port}` : ""}`
+    : ENGINE_NAME[resolvedEngine];
+  const testKey = slot ?? resolvedEngine;
   const hasRaw = resp.raw !== undefined && resp.raw !== null;
 
   async function handleCopy() {
@@ -99,7 +112,7 @@ export default function RawResponseInspector({ engine }: { engine: Engine }) {
   // --- No response yet -------------------------------------------------------
   if (resp.source === null) {
     return (
-      <div className="raw-inspector" data-testid={`raw-inspector-${engine}`}>
+      <div className="raw-inspector" data-testid={`raw-inspector-${testKey}`}>
         <p className="raw-inspector__empty">
           No response yet — run Compare or send an Advanced request.
         </p>
@@ -110,7 +123,7 @@ export default function RawResponseInspector({ engine }: { engine: Engine }) {
   // --- Loading ---------------------------------------------------------------
   if (resp.status === "loading") {
     return (
-      <div className="raw-inspector" data-testid={`raw-inspector-${engine}`}>
+      <div className="raw-inspector" data-testid={`raw-inspector-${testKey}`}>
         <p className="raw-inspector__loading">Loading…</p>
       </div>
     );
@@ -120,13 +133,13 @@ export default function RawResponseInspector({ engine }: { engine: Engine }) {
   const isError = resp.status === "error";
 
   return (
-    <div className="raw-inspector" data-testid={`raw-inspector-${engine}`}>
+    <div className="raw-inspector" data-testid={`raw-inspector-${testKey}`}>
       <div className="raw-inspector__header">
         <span className="raw-inspector__engine">{engineName} Response</span>
         {src && (
           <span
             className="raw-inspector__source"
-            data-testid={`raw-inspector-source-${engine}`}
+            data-testid={`raw-inspector-source-${testKey}`}
           >
             source: {src}
           </span>

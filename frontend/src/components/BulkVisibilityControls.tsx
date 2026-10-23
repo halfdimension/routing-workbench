@@ -30,11 +30,11 @@ export default function BulkVisibilityControls() {
 
   const disabled = routeCount === 0;
 
-  const controls: { label: string; onClick: () => void }[] = [
+  const controls: { label: string; onClick: () => void; ariaLabel?: string }[] = [
     { label: "Show All", onClick: showAll },
     { label: "Hide All", onClick: hideAll },
-    { label: "OSRM Only", onClick: osrmOnly },
-    { label: "Valhalla Only", onClick: valhallaOnly },
+    { label: "Engine A Only", onClick: osrmOnly, ariaLabel: "OSRM Only" },
+    { label: "Engine B Only", onClick: valhallaOnly, ariaLabel: "Valhalla Only" },
     { label: "Primary Only", onClick: primaryOnly },
     { label: "Alternatives Only", onClick: alternativesOnly },
   ];
@@ -42,13 +42,14 @@ export default function BulkVisibilityControls() {
   return (
     <div className="bulk-visibility">
       <div className="bulk-visibility__group">
-        {controls.map(({ label, onClick }) => (
+        {controls.map(({ label, onClick, ariaLabel }) => (
           <button
             key={label}
             type="button"
             className="bulk-visibility__btn"
             disabled={disabled}
             onClick={onClick}
+            aria-label={ariaLabel}
           >
             {label}
           </button>

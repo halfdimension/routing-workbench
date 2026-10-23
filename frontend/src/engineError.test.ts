@@ -138,4 +138,20 @@ describe("engineResultMessage — envelope bridge", () => {
       "Valhalla is unreachable at localhost:8002.",
     );
   });
+
+  it("uses the selected dynamic instance port", () => {
+    const result = errorResult("osrm", err("unreachable"));
+    result.instance = { type: "osrm", port: 5010, label: "New traffic" };
+    expect(engineResultMessage(result)).toBe(
+      "OSRM is unreachable at localhost:5010.",
+    );
+  });
+
+  it("surfaces no_route even when the transport status is ok", () => {
+    const result = errorResult("valhalla", err("no_route"), 200);
+    result.status = "ok";
+    expect(engineResultMessage(result)).toBe(
+      "Valhalla returned no route for these coordinates.",
+    );
+  });
 });

@@ -8,8 +8,8 @@
  * browser string into the Normal-mode UI.
  *
  * Message policy per kind (engine-specific host is included where useful; the
- * hosts mirror the backend allowlist, OSRM = localhost:5000, Valhalla =
- * localhost:8002 — Req 17.12):
+ * default hosts are OSRM = localhost:5000 and Valhalla = localhost:8002;
+ * dynamic results use their selected instance port — Req 17.12):
  *   - unreachable  → "<Engine> is unreachable at <host>."
  *   - timeout      → "<Engine> request timed out."
  *   - no_route     → "<Engine> returned no route for these coordinates."
@@ -71,11 +71,12 @@ export function engineErrorMessage(
   engine: Engine,
   error: EngineError,
   httpStatus: number | null = null,
+  port: number | null = null,
 ): string {
   const name = engineDisplayName(engine);
   switch (error.kind) {
     case "unreachable":
-      return `${name} is unreachable at ${ENGINE_HOST[engine]}.`;
+      return `${name} is unreachable at ${port == null ? ENGINE_HOST[engine] : `localhost:${port}`}.`;
     case "timeout":
       return `${name} request timed out.`;
     case "no_route":
@@ -103,11 +104,19 @@ export function engineErrorMessage(
 
 /**
  * Map a whole {@link EngineResult} envelope to an actionable message, or `null`
- * when the envelope is not in an error state (`status !== "error"` or no error).
+ * when the envelope has no error. A normalized `no_route` response is allowed
+ * to retain `status: "ok"` because the engine request itself succeeded; it is
+ * still a terminal per-slot result and must be displayed to the user.
  * This is the primary entry point for the UI: it reads `httpStatus` from the
  * envelope so `http_error` lines include the code.
  */
 export function engineResultMessage(result: EngineResult): string | null {
-  if (result.status !== "error" || result.error == null) return null;
-  return engineErrorMessage(result.engine, result.error, result.httpStatus);
+  if (result.error == null) return null;
+  if (result.status !== "error" && result.error.kind !== "no_route") return null;
+  return engineErrorMessage(
+    result.engine,
+    result.error,
+    result.httpStatus,
+    result.instance?.port ?? null,
+  );
 }

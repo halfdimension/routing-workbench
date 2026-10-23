@@ -1298,8 +1298,8 @@ export default function MapView() {
           {differenceLegendExpanded ? (
             <div className="route-difference-legend__body">
               <span><i className="route-difference-legend__line route-difference-legend__line--shared" />Shared corridor</span>
-              <span><i className="route-difference-legend__line route-difference-legend__line--osrm" />OSRM divergence</span>
-              <span><i className="route-difference-legend__line route-difference-legend__line--valhalla" />Valhalla divergence</span>
+              <span><i className="route-difference-legend__line route-difference-legend__line--osrm" />Engine A divergence</span>
+              <span><i className="route-difference-legend__line route-difference-legend__line--valhalla" />Engine B divergence</span>
               <span><i className="route-difference-legend__point route-difference-legend__point--split" />Split</span>
               <span><i className="route-difference-legend__point route-difference-legend__point--rejoin" />Rejoin</span>
               <small>True route geometry</small>
@@ -1334,7 +1334,7 @@ export default function MapView() {
                       ? "route-line-sample route-line-sample--primary"
                       : "route-line-sample route-line-sample--alternative"
                   }
-                  style={{ color: routeColor(route.engine, route.index) }}
+                  style={{ color: routeColor(route.engine, route.index, route.slot) }}
                   aria-hidden="true"
                 />
                 <span className="route-overlap-chooser__label">{route.label}</span>

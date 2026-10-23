@@ -8,7 +8,7 @@ import {
   STRUCTURAL_MAP_MIN_HEIGHT,
   useVerticalPanelResize,
 } from "../layout/useVerticalPanelResize";
-import { useStore } from "../store";
+import { flattenRoutes, useStore } from "../store";
 import type { CompareDebug } from "../types";
 import EdgeDetailsPanel from "./EdgeDetailsPanel";
 import JsonViewer from "./JsonViewer";
@@ -69,8 +69,9 @@ export default function TraceInspector() {
   });
 
   const comparisonIsLocal = (results?.routingTarget ?? "local") === "local";
+  const comparisonRoutes = results ? flattenRoutes(results) : [];
   const osrmRoutes = comparisonIsLocal
-    ? (results?.osrm.normalizedRoutes ?? [])
+    ? comparisonRoutes.filter((route) => route.engine === "osrm")
     : [];
   const sourceRoute =
     osrmRoutes.find((route) => route.id === sourceRouteId) ?? osrmRoutes[0];
